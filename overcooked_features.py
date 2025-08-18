@@ -217,6 +217,9 @@ class localObs(feature.Feature):
 
         assert np.array_equal(self.shape, encoding.shape)
 
+        clip = True
+        if clip: # clip the encoding between -1 and 1
+            encoding = np.clip(encoding, -1, 1)
         return encoding
 
     def generate_player_encoding(
