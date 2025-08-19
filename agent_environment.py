@@ -32,7 +32,7 @@ def agent_environment_loop(agent, env, device, num_update=1000, log_dir=None, ar
     action_prob_frames = []
 
     obs, info = env.reset()  # obs is a dict of obs for each agent
-    print(f'obs shape {obs['n_agent_overcooked_features'].shape}')  # (num_env*num_agents, obs_dim)
+    #print(f'obs shape {obs['n_agent_overcooked_features'].shape}')  # (num_env*num_agents, obs_dim)
     obs = torch.FloatTensor(obs['n_agent_overcooked_features']).to(device)  # (num_env*num_agents, obs_dim)
     dones = torch.zeros((args.num_envs*agent.num_agents,)).to(device)
     global_step = 0
