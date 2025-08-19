@@ -95,10 +95,6 @@ def make_vector_env(num_envs, overcooked_env):
     envs.single_action_space = overcooked_env.action_space  # Set the single action space
 
     out = envs.reset()
-    print(f'Observation after reset: {out[0][
-        'n_agent_overcooked_features'
-    ].shape}')  #  (num_envs, obs_shape)
-
     return envs
 
 
