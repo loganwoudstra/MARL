@@ -1,30 +1,5 @@
 import numpy as np
 
-def compute_epsilon_greedy_action_probs(q_vals, epsilon):
-    """Takes in Q-values and produces epsilon-greedy action probabilities
-
-    where ties are broken evenly.
-
-    Args:
-        q_vals: a numpy array of action values
-        epsilon: epsilon-greedy epsilon in ([0,1])
-         
-    Returns:
-        numpy array of action probabilities
-    """
-    assert len(q_vals.shape) == 1
-
-    # start your code
-    action_probabilities = np.zeros(q_vals.shape, dtype=float)
-    num_actions = q_vals.shape[0]
-    action_probabilities.fill(epsilon/num_actions)
-    max_a = np.argmax(q_vals)
-    #max_a = np.random.choice(np.flatnonzero(q_vals == q_vals.max()))
-    action_probabilities[max_a] += (1 - epsilon)
-    # end your code
-    assert action_probabilities.shape == q_vals.shape
-    return action_probabilities	
-
 class ConstantEpsilonGreedyExploration:
     """Epsilon-greedy with constant epsilon.
 
@@ -38,8 +13,13 @@ class ConstantEpsilonGreedyExploration:
         self.num_actions = num_actions
 
     def select_action(self, action_values) -> int:
-        action_probs = compute_epsilon_greedy_action_probs(action_values, self.epsilon)
-        return np.random.choice(len(action_probs), p=action_probs)
+        # Simple epsilon-greedy: if random < epsilon, explore; else exploit
+        if np.random.random() < self.epsilon:
+            # Explore: choose random action
+            return np.random.randint(0, self.num_actions)
+        else:
+            # Exploit: choose best action (break ties randomly)
+            return np.random.choice(np.flatnonzero(action_values == action_values.max()))
 
 class SarsaFeatureExtractor:
     """Class that implements feature extraction for SARSA."""

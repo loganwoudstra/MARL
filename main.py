@@ -273,7 +273,7 @@ def main():
         print('Using Semi-Gradient SARSA algorithm')
         if args.num_agents != 1:
             raise ValueError("Semi-Gradient SARSA implementation only supports single agent (num_agents=1).")
-        explorer = ConstantEpsilonGreedyExploration(sigle_agent_action_dim, 0.01)
+        explorer = ConstantEpsilonGreedyExploration(0.01, sigle_agent_action_dim)
         step_size = args.step_size
         discount = args.gamma
         feature_extractor = SarsaFeatureExtractor(single_agent_obs_dim[0], sigle_agent_action_dim)
@@ -295,7 +295,7 @@ def main():
     elif args.algorithm == 'sarsa':
         # Semi-Gradient SARSA uses step-based learning
         num_episode = args.total_steps // 1000  # assuming average episode length of 1000 steps
-        episode_returns, freq_dict = agent_environment_sarsa_loop(agent, vec_env, num_episodes=num_episode)
+        episode_returns, freq_dict = agent_environment_sarsa_loop(agent, vec_env, num_episodes=num_episode, log_dir=log_dir)
     else:
         # MAPPO/CMAPPO use step-based learning
         episode_returns, freq_dict = agent_environment_loop(agent, vec_env, device, num_update=num_updates, log_dir=log_dir, args=args)
