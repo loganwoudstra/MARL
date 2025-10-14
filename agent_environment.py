@@ -309,3 +309,31 @@ def mpe_environment_loop(agent, env, device, num_episodes=1000, log_dir=None):
 Problem: in MPE, 
 
 """# loop
+
+def agent_environment_sarsa_loop(agent, env, num_episodes, ntep=1):
+    n = 1
+    episode_returns = []
+    for episode in (range(num_episodes)):
+        observation, info = env.reset()
+        # start your code
+        observation = observation['n_agent_overcooked_features'][0]  # get the observation of agent 0
+        S = observation  # initialize S
+        A = agent.act(observation)  # initlize a (for sarsa)
+        episode_return = 0
+        while (True):
+            observation_next, R, terminated, truncated, info = env.step(A)   # s', r = T(s, a)
+            observation_next = observation_next['n_agent_overcooked_features'][0]  # get the observation of agent 0
+            agent.process_transition(observation_next, R, terminated, truncated)  # update Q
+            S = observation_next
+            episode_return += R
+            if terminated or truncated:
+                break
+
+            if n > 1:
+                #print(f'len(ab)={len(agent.ab)}')
+                A = agent.ab[-1]  # n step takes action A_{t + 1}
+            else:
+                A = agent.act(S)  # set last_action = A
+        episode_returns.append(episode_return)
+        # end your code
+    return episode_returns
