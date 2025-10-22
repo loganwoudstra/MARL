@@ -309,3 +309,183 @@ def mpe_environment_loop(agent, env, device, num_episodes=1000, log_dir=None):
 Problem: in MPE, 
 
 """# loop
+
+
+"""
+
+OPEN LOOP POLICY. IF THIS WORKS IPPO ON OVERCOOKED IS DEAD
+obs: [time_step, agent_id]
+"""
+
+def create_time_agent_observations(env_time_steps, num_agents, num_envs, device):
+    """
+    Create observations containing only [time_step, agent_id] for each agent
+    
+    Args:
+        env_time_steps: Tensor of time steps for each environment (num_envs,)
+        num_agents: Number of agents
+        num_envs: Number of environments
+        device: Device to place tensors on
+        
+    Returns:
+        Observations tensor (num_envs*num_agents, 2) containing [time_step, agent_id]
+    """
+    # Create time_step tensor - repeat each env's time step for all its agents
+    time_steps = []
+    for env_idx in range(num_envs):
+        for agent_id in range(num_agents):
+            time_steps.append(env_time_steps[env_idx].item())
+    time_steps = torch.tensor(time_steps, dtype=torch.float32, device=device).unsqueeze(1)
+    
+    # Create agent_id tensor - repeats agent IDs for each environment
+    agent_ids = []
+    for env_idx in range(num_envs):
+        for agent_id in range(num_agents):
+            agent_ids.append(agent_id)
+    agent_ids = torch.tensor(agent_ids, dtype=torch.float32, device=device).unsqueeze(1)
+    
+    # Concatenate time_step and agent_id to create observations
+    observations = torch.cat([time_steps, agent_ids], dim=1)
+    
+    return observations
+
+def agent_environment_open_loop(agent, env, device, num_update=1000, log_dir=None, args=None):
+    """
+    agent: mappo agent
+    """
+    summary_writer = SummaryWriter(log_dir=log_dir)
+    collect_steps = args.num_steps
+
+    # TODO: move this to replay buffer
+    episodes_reward = []
+    episode_reward = 0  # undiscount reward
+    num_episdes = 0
+    frequency_delivery_per_episode = 0
+    frequency_plated_per_episode = 0  # how many times agent plated the food
+    frequency_ingredient_in_pot_per_episode = 0  # how many times agent put ingredient in pot
+
+    frequency_delivery_per_episode_list = []
+    frequency_plated_per_episode_list = []
+    frequency_ingredient_in_pot_per_episode_list = []
+
+    # action prob frames
+    action_prob_frames = []
+
+    obs, info = env.reset()  # obs is a dict of obs for each agent
+    #print(f'obs shape {obs['n_agent_overcooked_features'].shape}')  # (num_env*num_agents, obs_dim)
+    # Track time steps for each environment separately
+    env_time_steps = torch.zeros(args.num_envs, dtype=torch.float32, device=device)
+    # Ignore environment observations, create observations with only [time_step, agent_id]
+    obs = create_time_agent_observations(env_time_steps, args.num_agents, args.num_envs, device)
+    dones = torch.zeros((args.num_envs*agent.num_agents,)).to(device)
+    global_step = 0
+    
+    for _ in tqdm(range(num_update)):
+        for step in range(collect_steps):
+            actions, logprobs, _, values = agent.act(obs)  # with no grad action dim (num_agents,)
+            assert actions.shape == (args.num_agents*args.num_envs,)
+            """
+            actions dim (num_agents,)
+            logprobs dim (num_agents,)
+            values dim (num_agents, 1)
+            """
+            #env_action = {i: action for i, action in enumerate(actions)}
+            next_obs, rewards, terminated, truncated, info = env.step(actions.cpu().numpy())
+            assert rewards.shape == (args.num_envs*agent.num_agents,)
+            assert terminated.shape == (args.num_envs*agent.num_agents,)
+            assert truncated.shape == (args.num_envs*agent.num_agents,)
+            #assert next_obs['n_agent_overcooked_features'].shape == (args.num_envs*agent.num_agents, ) + env.single_obs_space.shape
+
+            """
+            rewards = {agent_id: R for agent_id in N}
+            terminated = {agent_id: terminated for agent_id in N}
+            truncated = {agent_id: truncated for agent_id in N}
+            """
+            
+            #rewards = torch.tensor([rewards[i] for i in range(agent.num_agents)]).to(device)  # dim (num_agents,)
+            rewards = torch.FloatTensor(rewards).to(device)
+
+            # if there is 1 in rewards tensor, print hello
+            if torch.any(rewards[0:2] >= 1):
+                frequency_delivery_per_episode += 1
+                print(f'global_step {global_step} agent sucessfully delievered. rewards {rewards}')
+            if torch.any(rewards[0:2] == 0.3):
+                frequency_plated_per_episode += 1
+            if torch.any(rewards[0:2] == 0.1):
+                frequency_ingredient_in_pot_per_episode += 1
+
+            
+            # sum of reward
+            episode_reward +=  rewards[0:2].float().mean().item()  # mean reward for the episode
+     
+
+            #if rewards.float().mean().item() > 0:
+            #    print(f'global_step {global_step} rewards {rewards.float().mean().item()} non 0')
+
+            if values is not None:
+                values = values.squeeze(1)
+            agent.add_to_buffer(obs, actions, rewards, dones, logprobs, values)
+
+            if torch.all(dones[0:2]):
+                # handle reset 
+                next_obs, info = env.reset()
+                episodes_reward.append(episode_reward)
+                if args.log:
+                    summary_writer.add_scalar('episode_rewards', episode_reward, num_episdes)
+                    summary_writer.add_scalar('freq/frequency_delivery_per_episode', frequency_delivery_per_episode, num_episdes)
+                    summary_writer.add_scalar('freq/frequency_plated_per_episode', frequency_plated_per_episode, num_episdes)
+                    summary_writer.add_scalar('freq/frequency_ingredient_in_pot_per_episode', frequency_ingredient_in_pot_per_episode, num_episdes)
+                
+                frequency_delivery_per_episode_list.append(frequency_delivery_per_episode)
+                frequency_plated_per_episode_list.append(frequency_plated_per_episode)
+                frequency_ingredient_in_pot_per_episode_list.append(frequency_ingredient_in_pot_per_episode)
+
+                episode_reward = 0
+                frequency_delivery_per_episode = 0
+                frequency_plated_per_episode = 0
+                frequency_ingredient_in_pot_per_episode = 0
+                num_episdes += 1
+
+            obs = torch.FloatTensor(next_obs['n_agent_overcooked_features']).to(device)  # (num_env*num_agents, obs_dim)
+            dones = torch.tensor([terminated[i] or truncated[i] for i in range(args.num_envs*agent.num_agents)]).to(device)
+            
+            # Update time steps for each environment
+            env_time_steps += 1
+            
+            # Reset time steps for environments where any agent is done
+            # Check which environments have done agents
+            for env_idx in range(args.num_envs):
+                env_done = False
+                for agent_idx in range(agent.num_agents):
+                    global_agent_idx = env_idx * agent.num_agents + agent_idx
+                    if dones[global_agent_idx]:
+                        env_done = True
+                        break
+                if env_done:
+                    env_time_steps[env_idx] = 0
+            
+            # Ignore environment observations, create observations with only [time_step, agent_id]
+            obs = create_time_agent_observations(env_time_steps, args.num_agents, args.num_envs, device)
+
+            global_step += 1
+
+        # Update the agent with the collected data
+        agent.update(obs)
+
+        if args.log:
+            #image = evaluate_state(agent, env, device, global_step=global_step)
+            #image = imageio.imread(image)
+            #action_prob_frames.append(image)
+            pass
+    
+    freq_dict = {
+        'frequency_delivery_per_episode': frequency_delivery_per_episode_list,
+        'frequency_plated_per_episode': frequency_plated_per_episode_list,
+        'frequency_ingredient_in_pot_per_episode': frequency_ingredient_in_pot_per_episode_list
+    }
+
+    # save gif
+    if args.log:
+        #imageio.mimsave(f"data/{args.num_agents}_{args.layout}_seed_{args.seed}_action_prob_frames.gif", action_prob_frames)
+        pass
+    return episodes_reward, freq_dict

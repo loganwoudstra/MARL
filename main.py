@@ -1,6 +1,6 @@
 import functools
 import time
-
+import gymnasium as gym
 from cogrid.feature_space import feature_space
 from cogrid.envs.overcooked import overcooked
 from cogrid.core import layouts
@@ -17,7 +17,7 @@ import argparse
 from MAPPO import MAPPO
 from CentralizedMAPPO import CMAPPO
 from QMIX import QMIX
-from agent_environment import agent_environment_loop, qmix_environment_loop
+from agent_environment import agent_environment_loop, agent_environment_open_loop, qmix_environment_loop
 from buffer import Buffer
 from plot import plot_alg_results
 import pandas as pd
@@ -149,8 +149,8 @@ def main():
 
 
     parser.add_argument('--centralised', action='store_true', default=False, help='False is decentralised, True is centralised')
-    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix'], help='Algorithm to use')
-    
+    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix', 'open_loop_mappo'], help='Algorithm to use')
+
     # QMIX specific arguments
     parser.add_argument('--epsilon-start', type=float, default=1.0, help='Initial epsilon for exploration')
     parser.add_argument('--epsilon-end', type=float, default=0.05, help='Final epsilon for exploration')
@@ -253,6 +253,20 @@ def main():
                     gamma=args.gamma, lam=args.lam,
                     save_path=args.save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
         num_updates = args.total_steps // batch_size
+    elif args.algorithm == 'open_loop_mappo':
+        print('Using open loop MAPPO obs is [time_step, agent_id]')
+        obs_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32)
+        net = Agent(obs_space, action_space, num_agents=args.num_agents, num_envs=args.num_envs).to(device)
+        optimizer = torch.optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.95))
+        buffer = Buffer(obs_space.shape[0], env.config["num_agents"], args.num_envs, max_size=args.num_steps)
+        vec_env.single_observation_space = obs_space  # override obs space
+
+        agent = MAPPO(vec_env, optimizer, net, buffer, obs_space, sigle_agent_action_dim, batch_size=batch_size,
+                      num_mini_batches=args.num_minibatches, ppo_epoch=args.ppo_epoch, clip_param=args.clip_param,
+                    value_loss_coef=args.value_loss_coef, entropy_coef=args.entropy_coef, max_grad_norm=args.max_grad_norm,
+                    gamma=args.gamma, lam=args.lam,
+                    save_path=args.save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
+        num_updates = args.total_steps // batch_size
     elif args.algorithm == 'cmappo' or (args.algorithm == 'mappo' and args.centralised):
         print('Using centralised MAPPO')
         net = Agent(obs_space, action_space, num_agents=args.num_agents, num_envs=args.num_envs).to(device)
@@ -272,6 +286,9 @@ def main():
     if args.algorithm == 'qmix':
         # QMIX uses episode-based learning
         episode_returns, freq_dict = qmix_environment_loop(agent, vec_env, device, num_episodes=args.num_episodes, log_dir=log_dir, args=args)
+    elif args.algorithm == 'open_loop_mappo':
+        # Open loop MAPPO uses step-based learning with open loop observations
+        episode_returns, freq_dict = agent_environment_open_loop(agent, vec_env, device, num_update=num_updates, log_dir=log_dir, args=args)
     else:
         # MAPPO/CMAPPO use step-based learning
         episode_returns, freq_dict = agent_environment_loop(agent, vec_env, device, num_update=num_updates, log_dir=log_dir, args=args)

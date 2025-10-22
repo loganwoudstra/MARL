@@ -46,6 +46,11 @@ qmix-debug:
 	--epsilon-start 1.0 --epsilon-end 0.1 --epsilon-decay 0.99 --target-update-freq 50 \
 	--buffer-size 1000 --batch-size-qmix 16 --mixing-embed-dim 16 --hidden-dim 128 \
 	--feature global_obs --log
+open-loop:
+	python3 main.py --save-path models --num-agents 2 --num-envs 16 --layout overcooked_cramped_room_v0  --num-steps 256 --num-minibatches 4 \
+	--total-steps 20000000 --seed 3 --log --ppo-epoch 5 --clip-param 0.05 \
+	--value-loss-coef 0.1 --entropy-coef 0.01 --gamma 0.99 --lam 0.95 --max-grad-norm 0.5 --lr 3e-4 --data-path data \
+	--feature global_obs --algorithm open_loop_mappo
 
 # Test QMIX implementation
 test-qmix:
