@@ -3,7 +3,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks-per-node=2
 #SBATCH --mem=32G
-#SBATCH --time=60:00:00
+#SBATCH --time=20:00:00
 #SBATCH --account=aip-mtaylor3
 #SBATCH --output=/home/truonggi/scratch/slurm_out/%A.out
 #SBATCH --mail-user=truonggi@ualberta.ca
@@ -39,3 +39,13 @@ python3 ../main.py --save-path models --num-agents 2 --num-envs $1 --num-steps $
 --total-steps $4 --seed $5  --ppo-epoch $6 --clip-param $7 \
 --value-loss-coef $8 --entropy-coef $9 --gamma ${10} --lam ${11} --max-grad-norm 0.5 --lr ${12} --data-path ${13} --layout ${14} \
 --feature ${15}
+
+python3 ../main.py --save-path models --num-agents 2 --num-envs $1 --num-steps $2 --num-minibatches $3 \
+--total-steps $4 --seed $5  --ppo-epoch $6 --clip-param $7 \
+--value-loss-coef $8 --entropy-coef $9 --gamma ${10} --lam ${11} --max-grad-norm 0.5 --lr ${12} --data-path ${13} --layout ${14} \
+--feature ${15} --algorithm open_loop_mappo
+
+#python3 main.py --save-path models --num-agents 2 --num-envs 16 --layout overcooked_cramped_room_v0  --num-steps 256 --num-minibatches 4 \
+#--total-steps 20000000 --seed 3 --log --ppo-epoch 5 --clip-param 0.05 \
+#--value-loss-coef 0.1 --entropy-coef 0.01 --gamma 0.99 --lam 0.95 --max-grad-norm 0.5 --lr 3e-4 --data-path data \
+#--feature global_obs --algorithm open_loop_mappo
