@@ -27,7 +27,7 @@ class SarsaFeatureExtractor:
     def __init__(self, obs_dim, num_actions):
         self.obs_dim = obs_dim
         self.num_actions = num_actions
-        self.size = obs_dim * num_actions
+        self.size = obs_dim + num_actions  # one-hot encoding for action
 
     def __call__(self, state, action):
         """Returns the feature vector for a state-action pair.
@@ -40,8 +40,11 @@ class SarsaFeatureExtractor:
             a numpy array of shape (obs_dim * num_actions,)
         """
         # Your code here
-        features = np.zeros(self.obs_dim * self.num_actions)
-        features[action*self.obs_dim:(action+1)*self.obs_dim] = state
+        #features = np.zeros(self.obs_dim * self.num_actions)
+        #features[action*self.obs_dim:(action+1)*self.obs_dim] = state
+        features = np.zeros(self.obs_dim + self.num_actions)
+        features[:self.obs_dim] = state
+        features[self.obs_dim + action] = 1
         return features
         # end your code
 

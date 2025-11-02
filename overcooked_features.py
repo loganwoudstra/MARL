@@ -331,7 +331,7 @@ class BinaryFeature(feature.Feature):
             #    num_other_players=num_agents - 1
             #),
             # The (row, column) position of the agent
-            features.AgentPosition(),
+            BinaryAgentPosition(grid=env.grid),
             # The direction the agent can move in
             features.CanMoveDirection(),
         ]
@@ -616,6 +616,27 @@ def _calc_binary_pot_features(pot: overcooked_grid_objects.Pot, agent, grid: cog
     )
 
     return pot_features
+
+class BinaryAgentPosition(feature.Feature):
+    def __init__(self, grid=None, **kwargs):
+        height = grid.height
+        width = grid.width
+        super().__init__(
+            low=0,
+            high=1,
+            shape=(height * width,),
+            name="binary_agent_position",
+            **kwargs,
+        )
+        self.grid = grid
+
+    def generate(self, env: cogrid_env.CoGridEnv, player_id, **kwargs):
+        agent = env.grid.grid_agents[player_id]
+        agent_pos = np.asarray(agent.pos)
+        binary_agent_position = np.zeros((self.shape[0],), dtype=np.int32)
+        flat_index = agent_pos[0] * self.grid.width + agent_pos[1]
+        binary_agent_position[flat_index] = 1
+        return binary_agent_position
 
 class NClosestBinaryPotFeatures(feature.Feature):
     def __init__(self, num_pots=2, grid=None, **kwargs):
