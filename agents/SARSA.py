@@ -69,7 +69,9 @@ class SARSA(Agent):
         self.target_q_network = QNetwork(obs_dim, action_dim, hidden_dim).to(self.device)
         self.target_q_network.load_state_dict(self.q_network.state_dict())
         self.target_update_freq = target_update_freq
+        
         self.update_count = 0
+        self.episode_count = 0
         
         self.optimizer = torch.optim.Adam(self.q_network.parameters(), lr=lr)
         
@@ -124,7 +126,7 @@ class SARSA(Agent):
 
             target = self.curr_rewards + self.gamma * (1 - self.curr_dones) * next_q_sa
         
-        loss = F.mse(curr_q_sa, target)
+        loss = F.mse_loss(curr_q_sa, target)
         self.optimizer.zero_grad()
         loss.backward()
         

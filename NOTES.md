@@ -18,5 +18,5 @@ sbatch run_marl.sh \
 ```
 
 ```
-python3 main.py --save-path models --num-agents 1 --num-envs 16 --layout overcooked_cramped_room_v0 --total-steps 20000000 --seed 2 --log  --ppo-epoch 5 --gamma 0.99 --lr 3e-4 --data-path data --feature global_obs --algorithim sarsa
+python main.py --save-path models --num-agents 1 --num-envs 1 --layout overcooked_cramped_room_v0 --total-steps 20000000 --seed 2 --log  --ppo-epoch 5 --gamma 0.99 --lr 3e-4 --data-path data --feature global_obs --algorithm sarsa
 ```

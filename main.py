@@ -215,7 +215,7 @@ def main():
         # We don't need the batch_size calculation from PPO
         save_path = None
         if args.save_path:
-            save_path = os.path.join(PROJECT_ROOT, args.save_path, f"{args.algorithim}_{args.num_agents}_agents_{args.layout}_seed_{args.seed}")
+            save_path = os.path.join(PROJECT_ROOT, args.save_path, f"{args.algorithm}_{args.num_agents}_agents_{args.layout}_seed_{args.seed}")
         
         if args.algorithm == 'qmix':
             print('Using QMIX algorithm')
@@ -300,7 +300,7 @@ def main():
     def get_algorithm_name(args):
         if args.algorithm == 'qmix':
             return 'qmix'
-        elif args.algorthim == 'sarsa':
+        elif args.algorthm == 'sarsa':
             return 'sarsa'
         elif args.algorithm == 'mappo' or args.algorithm == 'cmappo':
             return "centralised" if args.centralised else "decentralised"
