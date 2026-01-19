@@ -1,5 +1,6 @@
+1. CC run ppo
 ```
-sbatch run_marl.sh \
+sbatch scripts/cc_script.sh \
   16 \
   128 \
   4 \
@@ -17,6 +18,24 @@ sbatch run_marl.sh \
   global_obs
 ```
 
+2. local run sarsa
 ```
-python main.py --save-path models --num-agents 1 --num-envs 1 --layout overcooked_cramped_room_v0 --total-steps 20000000 --seed 2 --log  --ppo-epoch 5 --gamma 0.99 --lr 3e-4 --data-path data --feature global_obs --algorithm sarsa
+python main.py --save-path models --num-agents 1 --num-envs 1 --layout overcooked_cramped_room_v0 --total-steps 20000000 --seed 2 --log --gamma 0.99 --lr 3e-4 --data-path data --feature global_obs --algorithm sarsa
+```
+
+3. CC run sarsa
+sbatch scripts/CC_script_sarsa.sh \
+  overcooked_cramped_room_v0 \
+  1 \
+  6000 \
+  2 \
+  3e-4 \
+  0.99 \
+  1.0 \
+  0.05 \
+  0.995 \
+  200 \
+  256 \
+  data \
+  global_obs
 ```

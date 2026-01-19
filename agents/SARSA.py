@@ -98,7 +98,7 @@ class SARSA(Agent):
                 
                 actions.append(action.item())
             
-            return torch.tensor(actions, dtype=torch.long)
+            return torch.tensor(actions, dtype=torch.long, device=self.device)
     
     def update(self, next_obs):
         self.next_states = next_obs.to(self.device)

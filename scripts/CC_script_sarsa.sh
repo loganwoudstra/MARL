@@ -3,11 +3,9 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks-per-node=2
 #SBATCH --mem=32G
-#SBATCH --time=60:00:00
-#SBATCH --account=aip-mtaylor3
-#SBATCH --output=/home/truonggi/scratch/slurm_out/%A.out
-#SBATCH --mail-user=truonggi@ualberta.ca
-#SBATCH --mail-type=ALL
+#SBATCH --time=12:00:00
+#SBATCH --account=def-mtaylor3
+#SBATCH --output=/home/lwoudstr/links/scratch/slurm_out/%A.out
 
 
 export results=$SLURM_TMPDIR/results
@@ -28,15 +26,12 @@ echo $7  # epsilon_start
 echo $8  # epsilon_end
 echo $9  # epsilon_decay
 echo ${10} # target_update_freq
-echo ${11} # buffer_size
-echo ${12} # batch_size_qmix
-echo ${13} # mixing_embed_dim
-echo ${14} # hidden_dim
-echo ${15} # data_path
-echo ${16} # feature
+echo ${11} # hidden_dim
+echo ${12} # data_path
+echo ${13} # feature
 
-python3 main.py --algorithm qmix --save-path models --num-agents $2 --num-envs 1 --layout $1 \
+python3 main.py --algorithm sarsa --save-path models --num-agents $2 --num-envs 1 --layout $1 \
 --num-episodes $3 --seed $4 --lr $5 --gamma $6 \
 --epsilon-start $7 --epsilon-end $8 --epsilon-decay $9 --target-update-freq ${10} \
---buffer-size ${11} --batch-size-qmix ${12} --mixing-embed-dim ${13} --hidden-dim ${14} \
---data-path ${15} --feature ${16} --save
+--hidden-dim ${11} \
+--data-path ${12} --feature ${13} --save
