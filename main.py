@@ -14,9 +14,7 @@ import supersuit as ss
 from model import Agent 
 import torch
 import argparse
-from MAPPO import MAPPO
-from CentralizedMAPPO import CMAPPO
-from QMIX import QMIX
+from agents import MAPPO, CMAPPO, QMIX, SARSA
 from agent_environment import agent_environment_loop, qmix_environment_loop
 from buffer import Buffer
 from plot import plot_alg_results
@@ -120,6 +118,9 @@ def main():
     parser.add_argument('--render', action='store_true', default=False, help='render the env')
     parser.add_argument('--seed', type=int, default=1,  help='seed')
     parser.add_argument("--feature", type=str, default="global_obs", help="feature to use for the environment")
+    parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
+    parser.add_argument('--centralised', action='store_true', default=False, help='False is decentralised, True is centralised')
+    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix', 'sarsa'], help='Algorithm to use')
     
     # ppo args
     """
@@ -143,23 +144,20 @@ def main():
     parser.add_argument('--value-loss-coef', type=float, default=0.5, help='value loss coefficient')
     parser.add_argument('--entropy-coef', type=float, default=0.01, help='entropy coefficient')
     parser.add_argument('--max-grad-norm', type=float, default=0.5, help='max gradient norm')
-    parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
     parser.add_argument('--lam', type=float, default=0.95, help='lambda for GAE')
     
-
-
-    parser.add_argument('--centralised', action='store_true', default=False, help='False is decentralised, True is centralised')
-    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix'], help='Algorithm to use')
     
-    # QMIX specific arguments
+    # QMIX/SARSA specific arguments
     parser.add_argument('--epsilon-start', type=float, default=1.0, help='Initial epsilon for exploration')
     parser.add_argument('--epsilon-end', type=float, default=0.05, help='Final epsilon for exploration')
     parser.add_argument('--epsilon-decay', type=float, default=0.995, help='Epsilon decay rate')
     parser.add_argument('--target-update-freq', type=int, default=200, help='Target network update frequency')
+    parser.add_argument('--hidden-dim', type=int, default=256, help='Hidden layer dimension')
+    
+    # QMIX only
     parser.add_argument('--buffer-size', type=int, default=5000, help='Experience replay buffer size')
     parser.add_argument('--batch-size-qmix', type=int, default=32, help='Batch size for QMIX')
     parser.add_argument('--mixing-embed-dim', type=int, default=32, help='Mixing network embedding dimension')
-    parser.add_argument('--hidden-dim', type=int, default=256, help='Hidden layer dimension')
     parser.add_argument('--num-episodes', type=int, default=1000, help='Number of episodes for QMIX training')
     
     args = parser.parse_args()
@@ -201,11 +199,10 @@ def main():
     sigle_agent_action_dim = env.action_spaces[0].n  # int
     
     # Select algorithm
-    if args.algorithm == 'qmix':
-        print('Using QMIX algorithm')
-        # For QMIX, we assume num_envs = 1 for simplicity
+    if args.algorithm in ['qmix', 'sarsa']:
+        # We assume num_envs = 1 for simplicity
         if args.num_envs != 1:
-            print(f"Warning: QMIX implementation assumes num_envs=1, but got num_envs={args.num_envs}. Setting num_envs=1.")
+            print(f"Warning: QMIX/SARSA implementation assumes num_envs=1, but got num_envs={args.num_envs}. Setting num_envs=1.")
             args.num_envs = 1
             # Recreate vectorized environment with num_envs=1
             vec_env = make_vector_env(num_envs=1, overcooked_env=env)
@@ -215,32 +212,54 @@ def main():
         action_dim = sigle_agent_action_dim
         state_dim = args.num_agents * obs_dim  # Use concatenated observations as global state
         
-        # For QMIX, we don't need the batch_size calculation from PPO
-        save_path_qmix = None
+        # We don't need the batch_size calculation from PPO
+        save_path = None
         if args.save_path:
-            save_path_qmix = os.path.join(PROJECT_ROOT, args.save_path, f"qmix_{args.num_agents}_agents_{args.layout}_seed_{args.seed}")
+            save_path = os.path.join(PROJECT_ROOT, args.save_path, f"{args.algorithim}_{args.num_agents}_agents_{args.layout}_seed_{args.seed}")
         
-        agent = QMIX(
-            env=vec_env,
-            num_agents=args.num_agents,
-            obs_dim=obs_dim,
-            action_dim=action_dim,
-            state_dim=state_dim,
-            lr=args.lr,
-            gamma=args.gamma,
-            epsilon_start=args.epsilon_start,
-            epsilon_end=args.epsilon_end,
-            epsilon_decay=args.epsilon_decay,
-            target_update_freq=args.target_update_freq,
-            buffer_size=args.buffer_size,
-            batch_size=args.batch_size_qmix,
-            mixing_embed_dim=args.mixing_embed_dim,
-            hidden_dim=args.hidden_dim,
-            save_path=save_path_qmix,
-            log_dir=log_dir,
-            log=args.log,
-            args=args
-        )
+        if args.algorithm == 'qmix':
+            print('Using QMIX algorithm')
+            agent = QMIX(
+                env=vec_env,
+                num_agents=args.num_agents,
+                obs_dim=obs_dim,
+                action_dim=action_dim,
+                state_dim=state_dim,
+                lr=args.lr,
+                gamma=args.gamma,
+                epsilon_start=args.epsilon_start,
+                epsilon_end=args.epsilon_end,
+                epsilon_decay=args.epsilon_decay,
+                target_update_freq=args.target_update_freq,
+                buffer_size=args.buffer_size,
+                batch_size=args.batch_size_qmix,
+                mixing_embed_dim=args.mixing_embed_dim,
+                hidden_dim=args.hidden_dim,
+                save_path=save_path,
+                log_dir=log_dir,
+                log=args.log,
+                args=args
+            )
+        elif args.algorithm == 'sarsa':
+            print('Using SARSA algorithm')
+            agent = SARSA(
+                env=vec_env,
+                num_agents=args.num_agents,
+                obs_dim=obs_dim,
+                action_dim=action_dim,
+                # state_dim=state_dim,
+                lr=args.lr,
+                gamma=args.gamma,
+                epsilon_start=args.epsilon_start,
+                epsilon_end=args.epsilon_end,
+                epsilon_decay=args.epsilon_decay,
+                target_update_freq=args.target_update_freq,
+                hidden_dim=args.hidden_dim,
+                save_path=save_path,
+                log_dir=log_dir,
+                log=args.log,
+                args=args
+            )
     elif args.algorithm == 'mappo' or (args.algorithm == 'mappo' and not args.centralised):
         print('Using decentralised MAPPO')
         net = Agent(obs_space, action_space, num_agents=args.num_agents, num_envs=args.num_envs).to(device)
@@ -269,7 +288,7 @@ def main():
         raise ValueError(f"Unknown algorithm: {args.algorithm}")
     
     # Use appropriate environment loop based on algorithm
-    if args.algorithm == 'qmix':
+    if args.algorithm in ['qmix', 'sarsa']:
         # QMIX uses episode-based learning
         episode_returns, freq_dict = qmix_environment_loop(agent, vec_env, device, num_episodes=args.num_episodes, log_dir=log_dir, args=args)
     else:
@@ -281,6 +300,8 @@ def main():
     def get_algorithm_name(args):
         if args.algorithm == 'qmix':
             return 'qmix'
+        elif args.algorthim == 'sarsa':
+            return 'sarsa'
         elif args.algorithm == 'mappo' or args.algorithm == 'cmappo':
             return "centralised" if args.centralised else "decentralised"
         else:

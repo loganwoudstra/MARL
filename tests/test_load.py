@@ -11,7 +11,7 @@ from cogrid.core.directions import Directions
 from cogrid.core.actions import Actions
 
 
-from MAPPO import MAPPO
+from agents import MAPPO
 #env
 
 def make_env(num_agents=4, layout="large_overcooked_layout", feature="global_obs", render_mode="human"):

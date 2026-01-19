@@ -10,15 +10,18 @@ Multiagent-PPO (Decentralised/centralised) on [cogrid](https://github.com/chasem
 - pip3 install -r requirements.txt
 
 ## Setting up on Compute Canada
-1. ```
+1. 
+```
 module load StdEnv/2023
 module load python/3.10 
 module load gcc opencv/4.9.0
 ```
-2. ```
+2. 
+```
 virtualenv $name
 ```
-3. ```
+3. 
+```
 pip3 install -r requirement_cc.txt
 ```
 
