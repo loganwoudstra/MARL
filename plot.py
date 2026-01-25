@@ -125,12 +125,12 @@ def produce_plots_for_all_configs(folder_name="data", keyword="returns"):
     for configuration in configs:
         if data_dict[configuration]:
             if keyword == "returns":
-                running_avg, list_of_list = plot_alg_results(data_dict[configuration], f"Overcooked.png", label="Running average")
+                running_avg, list_of_list = plot_alg_results(data_dict[configuration], f"plots/Overcooked.png", label="Running average")
             elif keyword == "pot":
-                running_avg, list_of_list = plot_ingredients_in_pots(data_dict[configuration], f"Overcooked_ingredients_in_pots.png", label="",title="Overcooked_2 agents in cramped room - Ingredients in Pots",  ylabel="frequency")
+                running_avg, list_of_list = plot_ingredients_in_pots(data_dict[configuration], f"plots/Overcooked_ingredients_in_pots.png", label="",title="Overcooked_2 agents in cramped room - Ingredients in Pots",  ylabel="frequency")
             elif keyword == "delivery":
                 print(f"Plotting delivery data for {configuration}")
-                running_avg, list_of_list = plot_ingredients_in_pots(data_dict[configuration], f"Overcooked_delivery.png", label="",title="Overcooked_2 agents in cramped room - Delivery",  ylabel="frequency")
+                running_avg, list_of_list = plot_ingredients_in_pots(data_dict[configuration], f"plots/Overcooked_delivery.png", label="",title="Overcooked_2 agents in cramped room - Delivery",  ylabel="frequency")
     
     return running_avg, list_of_list
 
