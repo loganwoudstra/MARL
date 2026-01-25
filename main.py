@@ -166,7 +166,7 @@ def main():
     
     # SAC
     parser.add_argument('--tau', type=float, default=0.005, help='Tau for soft update')
-    parser.add_argument('--batch-size-sac', type=int, default=32, help='Batch size for SAC')
+    # parser.add_argument('--batch-size-sac', type=int, default=32, help='Batch size for SAC')
     
     args = parser.parse_args()
     print(f'num_agents: {args.num_agents}, layout: {args.layout}, save_path: {args.save_path}, algorithm: {args.algorithm}')
@@ -280,7 +280,7 @@ def main():
                 gamma=args.gamma,
                 tau=args.tau,
                 buffer_size=args.buffer_size,
-                batch_size=args.batch_size_sac,
+                batch_size=batch_size,
                 save_path=save_path,
                 log_dir=log_dir,
                 log=args.log,
@@ -297,7 +297,6 @@ def main():
                     value_loss_coef=args.value_loss_coef, entropy_coef=args.entropy_coef, max_grad_norm=args.max_grad_norm,
                     gamma=args.gamma, lam=args.lam,
                     save_path=args.save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
-        num_updates = args.total_steps // batch_size
     elif args.algorithm == 'cmappo' or (args.algorithm == 'mappo' and args.centralised):
         print('Using centralised MAPPO')
         net = Agent(obs_space, action_space, num_agents=args.num_agents, num_envs=args.num_envs).to(device)
@@ -309,16 +308,18 @@ def main():
                     value_loss_coef=args.value_loss_coef, entropy_coef=args.entropy_coef, max_grad_norm=args.max_grad_norm,
                     gamma=args.gamma, lam=args.lam,
                     save_path=args.save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
-        num_updates = args.total_steps // batch_size
     else:
         raise ValueError(f"Unknown algorithm: {args.algorithm}")
     
     # Use appropriate environment loop based on algorithm
-    if args.algorithm in ['qmix', 'sarsa', 'sac']:
+    if args.algorithm == 'qmix':
         # QMIX uses episode-based learning
         episode_returns, freq_dict = qmix_environment_loop(agent, vec_env, device, num_episodes=args.num_episodes, log_dir=log_dir, args=args)
     else:
         # MAPPO/CMAPPO use step-based learning
+        num_updates = args.total_steps // batch_size
+        print(batch_size)
+        print(num_updates)
         episode_returns, freq_dict = agent_environment_loop(agent, vec_env, device, num_update=num_updates, log_dir=log_dir, args=args)
         
     print(f'episode returns {episode_returns}')

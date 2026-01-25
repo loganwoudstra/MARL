@@ -189,8 +189,8 @@ class SAC(Agent):
             next_v = (next_probs * (next_min_q - self.alpha * next_log_probs)).sum(dim=-1)
             target_q_vals = rewards + self.gamma * (1 - dones) * next_v
             
-        q1_vals = q1_vals_all.gather(1, actions.unsqueeze(1)).squeeze(1)
-        q2_vals = q2_vals_all.gather(1, actions.unsqueeze(1)).squeeze(1)
+        q1_vals = q1_vals_all.gather(2, actions.unsqueeze(-1)).squeeze(-1)
+        q2_vals = q2_vals_all.gather(2, actions.unsqueeze(-1)).squeeze(-1)
         
         critic1_loss = F.mse_loss(q1_vals, target_q_vals)
         critic2_loss = F.mse_loss(q2_vals, target_q_vals)
