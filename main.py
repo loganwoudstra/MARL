@@ -14,7 +14,7 @@ import supersuit as ss
 from model import Agent 
 import torch
 import argparse
-from agents import MAPPO, CMAPPO, QMIX, SARSA
+from agents import MAPPO, CMAPPO, QMIX, SARSA, SAC
 from agent_environment import agent_environment_loop, qmix_environment_loop
 from buffer import Buffer
 from plot import plot_alg_results
@@ -120,7 +120,7 @@ def main():
     parser.add_argument("--feature", type=str, default="global_obs", help="feature to use for the environment")
     parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
     parser.add_argument('--centralised', action='store_true', default=False, help='False is decentralised, True is centralised')
-    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix', 'sarsa'], help='Algorithm to use')
+    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix', 'sarsa', 'sac'], help='Algorithm to use')
     
     # ppo args
     """
@@ -146,19 +146,27 @@ def main():
     parser.add_argument('--max-grad-norm', type=float, default=0.5, help='max gradient norm')
     parser.add_argument('--lam', type=float, default=0.95, help='lambda for GAE')
     
+    # NN function approximator (QMIX, SARSA, SAC)
+    parser.add_argument('--hidden-dim', type=int, default=256, help='Hidden layer dimension')
+    
+    # REPLAY BUFFER (QMIX, SAC)
+    parser.add_argument('--buffer-size', type=int, default=5000, help='Experience replay buffer size')
+    
     
     # QMIX/SARSA specific arguments
     parser.add_argument('--epsilon-start', type=float, default=1.0, help='Initial epsilon for exploration')
     parser.add_argument('--epsilon-end', type=float, default=0.05, help='Final epsilon for exploration')
     parser.add_argument('--epsilon-decay', type=float, default=0.995, help='Epsilon decay rate')
     parser.add_argument('--target-update-freq', type=int, default=200, help='Target network update frequency')
-    parser.add_argument('--hidden-dim', type=int, default=256, help='Hidden layer dimension')
     
     # QMIX only
-    parser.add_argument('--buffer-size', type=int, default=5000, help='Experience replay buffer size')
     parser.add_argument('--batch-size-qmix', type=int, default=32, help='Batch size for QMIX')
     parser.add_argument('--mixing-embed-dim', type=int, default=32, help='Mixing network embedding dimension')
     parser.add_argument('--num-episodes', type=int, default=1000, help='Number of episodes for QMIX training')
+    
+    # SAC
+    parser.add_argument('--tau', type=float, default=0.005, help='Tau for soft update')
+    parser.add_argument('--batch-size-sac', type=int, default=32, help='Batch size for SAC')
     
     args = parser.parse_args()
     print(f'num_agents: {args.num_agents}, layout: {args.layout}, save_path: {args.save_path}, algorithm: {args.algorithm}')
@@ -199,10 +207,10 @@ def main():
     sigle_agent_action_dim = env.action_spaces[0].n  # int
     
     # Select algorithm
-    if args.algorithm in ['qmix', 'sarsa']:
+    if args.algorithm in ['qmix', 'sarsa', 'sac']:
         # We assume num_envs = 1 for simplicity
         if args.num_envs != 1:
-            print(f"Warning: QMIX/SARSA implementation assumes num_envs=1, but got num_envs={args.num_envs}. Setting num_envs=1.")
+            print(f"Warning: QMIX/SARSA/SAC implementation assumes num_envs=1, but got num_envs={args.num_envs}. Setting num_envs=1.")
             args.num_envs = 1
             # Recreate vectorized environment with num_envs=1
             vec_env = make_vector_env(num_envs=1, overcooked_env=env)
@@ -260,6 +268,24 @@ def main():
                 log=args.log,
                 args=args
             )
+        elif args.algorithm == 'sac':
+            print('Using SAC algorithm')
+            agent = SAC(
+                env=vec_env,
+                num_agents=args.num_agents,
+                obs_dim=obs_dim,
+                action_dim=action_dim,
+                # state_dim=state_dim,
+                lr=args.lr,
+                gamma=args.gamma,
+                tau=args.tau,
+                buffer_size=args.buffer_size,
+                batch_size=args.batch_size_sac,
+                save_path=save_path,
+                log_dir=log_dir,
+                log=args.log,
+                args=args
+            )
     elif args.algorithm == 'mappo' or (args.algorithm == 'mappo' and not args.centralised):
         print('Using decentralised MAPPO')
         net = Agent(obs_space, action_space, num_agents=args.num_agents, num_envs=args.num_envs).to(device)
@@ -288,7 +314,7 @@ def main():
         raise ValueError(f"Unknown algorithm: {args.algorithm}")
     
     # Use appropriate environment loop based on algorithm
-    if args.algorithm in ['qmix', 'sarsa']:
+    if args.algorithm in ['qmix', 'sarsa', 'sac']:
         # QMIX uses episode-based learning
         episode_returns, freq_dict = qmix_environment_loop(agent, vec_env, device, num_episodes=args.num_episodes, log_dir=log_dir, args=args)
     else:
@@ -300,8 +326,10 @@ def main():
     def get_algorithm_name(args):
         if args.algorithm == 'qmix':
             return 'qmix'
-        elif args.algorthm == 'sarsa':
+        elif args.algorithm == 'sarsa':
             return 'sarsa'
+        elif args.algorithm == 'sac':
+            return 'sac'
         elif args.algorithm == 'mappo' or args.algorithm == 'cmappo':
             return "centralised" if args.centralised else "decentralised"
         else:
