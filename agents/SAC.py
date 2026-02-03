@@ -75,11 +75,12 @@ class SAC(Agent):
         action_dim,
         #  state_dim,
         hidden_dim=256,
-        lr=0.0005, 
+        lr=1e-4, 
         gamma=0.99, 
         tau=0.005,
         buffer_size=5000,
         batch_size=32,
+        start_updating_steps=10_000,
         save_path=None, 
         log_dir=None, 
         log=False, 
@@ -110,21 +111,31 @@ class SAC(Agent):
         
         # Experience replay buffer
         self.buffer = Buffer(buffer_size, num_agents, obs_dim)
+        self.start_updating_steps = start_updating_steps
         
         # tempature
-        self.log_alpha = nn.Parameter(torch.tensor(0.0))
+        self.log_alpha = torch.tensor(
+            np.log(1.0), requires_grad=True, device=self.device
+        )
         self.alpha = self.log_alpha.exp()
         self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=lr)
-        self.target_alpha = -math.log(self.action_dim)
+        # self.target_entropy = 0.98 * -np.log(1.0 / self.action_dim)
+        self.target_entropy = 0.5 * -np.log(action_dim)
         
     def act(self, obs, state=None, training=True):
+        # TODO: while in collection phase, take random actions
         with torch.no_grad():
             obs_batch = obs.to(self.device) # [num_agents, obs_dim]
             logits = self.actor(obs_batch) # [num_agents, action_dim]
             if training:
+                if torch.isnan(logits).any():
+                    print("NaNs in actor logits")
+                    print("alpha:", self.alpha.item())
+                    raise RuntimeError("Actor NaN")
+
                 dist = torch.distributions.Categorical(logits=logits)
                 actions = dist.sample()
-            else:
+            else: # greedy
                 actions = torch.argmax(logits, dim=-1)
         return actions, None, None, None # match MAPPO interface
         
@@ -144,11 +155,10 @@ class SAC(Agent):
             dones.cpu()
         )
         
-        # Update networks if we have enough samples
-        if len(self.buffer) > self.batch_size:
+        # Update networks once buffer is big enough
+        if len(self.buffer) > self.start_updating_steps:
             self._update_ac_networks()
             self._update_target_networks()
-        
 
         self.update_count += 1
         
@@ -173,6 +183,8 @@ class SAC(Agent):
         
         self._critic_update(q1_vals_all, q2_vals_all, actions, rewards, next_obs, dones)
         self._actor_update(q1_vals_all, q2_vals_all, dist)
+        
+        # if self.update_count >= 50_000: # delay alpha learning
         self._alpha_update(dist)
         
     def _critic_update(self, q1_vals_all, q2_vals_all, actions, rewards, next_obs, dones):
@@ -182,8 +194,8 @@ class SAC(Agent):
             next_probs = next_dist.probs
             next_log_probs = next_dist.logits - torch.logsumexp(next_dist.logits, dim=-1, keepdim=True)
         
-            next_q1_vals = self.critic1(next_obs)
-            next_q2_vals = self.critic2(next_obs)
+            next_q1_vals = self.target_critic1(next_obs)
+            next_q2_vals = self.target_critic2(next_obs)
             next_min_q = torch.min(next_q1_vals, next_q2_vals)
             
             next_v = (next_probs * (next_min_q - self.alpha * next_log_probs)).sum(dim=-1)
@@ -197,17 +209,19 @@ class SAC(Agent):
         
         self.critic1_optimizer.zero_grad()
         critic1_loss.backward()
+        # torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), 10.0)
         self.critic1_optimizer.step()
         
         self.critic2_optimizer.zero_grad()
         critic2_loss.backward()
+        # torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), 10.0)
         self.critic2_optimizer.step()
         
         if self.log and self.summary_writer:
             self.summary_writer.add_scalar("losses/critic1_loss", critic1_loss.item(), self.update_count)
             self.summary_writer.add_scalar("losses/critic2_loss", critic2_loss.item(), self.update_count)
             self.summary_writer.add_scalar("charts/q1_values_mean", q1_vals.mean().item(), self.update_count)
-            self.summary_writer.add_scalar("charts/q1_values_mean", q1_vals.mean().item(), self.update_count)
+            self.summary_writer.add_scalar("charts/q2_values_mean", q2_vals.mean().item(), self.update_count)
     
     def _actor_update(self, q1_vals_all, q2_vals_all, dist):  
         probs = dist.probs
@@ -219,6 +233,7 @@ class SAC(Agent):
         
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
+        # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 10.0)
         self.actor_optimizer.step()
         
         if self.log and self.summary_writer:
@@ -226,16 +241,28 @@ class SAC(Agent):
     
     def _alpha_update(self, dist):
         entropy = dist.entropy().mean()
-        alpha_loss = -(self.log_alpha * (entropy - self.target_alpha).detach())
+        alpha_loss = -(self.log_alpha * (entropy - self.target_entropy).detach())
+        # log_probs = dist.logits - torch.logsumexp(dist.logits, dim=-1, keepdim=True)
+        # alpha_loss = -(self.log_alpha * (log_probs + self.target_entropy).detach()).mean()
         self.alpha_optimizer.zero_grad()
         
         alpha_loss.backward()
         self.alpha_optimizer.step()
+        self.log_alpha.data.clamp_(min=-5, max=2)
         self.alpha = self.log_alpha.exp()
         
         if self.log and self.summary_writer:
             self.summary_writer.add_scalar("losses/alpha_loss", alpha_loss.item(), self.update_count)
             self.summary_writer.add_scalar("charts/alpha", self.alpha, self.update_count)
+            
+        if self.update_count % 10_000 == 0:
+            with torch.no_grad():
+                entropy = dist.entropy().mean().item()
+                print(
+                    f"α={self.alpha.item():.4f} | "
+                    f"H={entropy:.4f} | "
+                    f"H_target={self.target_entropy:.4f}"
+                )
         
     def _update_target_networks(self):
         self._soft_update(self.target_critic1, self.critic1)

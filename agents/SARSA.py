@@ -77,6 +77,7 @@ class SARSA(Agent):
         
     def act(self, obs, state=None, training=True):
         if self.next_actions is None or not training:
+            obs = obs.to(self.device)
             actions = self._get_actions(obs)
         else:
             actions = self.next_actions
@@ -86,19 +87,20 @@ class SARSA(Agent):
     def _get_actions(self, obs, training=True):
         with torch.no_grad():
             # Process all agents at once with shared network
-            obs_batch = obs.to(self.device)  # [num_agents, obs_dim]
-            q_values = self.q_network(obs_batch)  # [num_agents, action_dim]
+            q_values = self.q_network(obs)  # [num_agents, action_dim]
             
-            actions = []
-            for i in range(self.num_agents):
-                if training and random.random() < self.epsilon:
-                    action = torch.randint(0, self.action_dim, (1,)).to(self.device)
-                else:
-                    action = q_values[i].argmax(dim=0)  # Get action for agent i
-                
-                actions.append(action.item())
+            if training:
+                # Vectorized epsilon-greedy
+                random_mask = torch.rand(self.num_agents, device=self.device) < self.epsilon
+                random_actions = torch.randint(0, self.action_dim, (self.num_agents,), device=self.device)
+                greedy_actions = q_values.argmax(dim=1)
+                actions = torch.where(random_mask, random_actions, greedy_actions)
+            else:
+                actions = q_values.argmax(dim=1)
             
-            return torch.tensor(actions, dtype=torch.long, device=self.device)
+            return actions
+            
+            # return torch.tensor(actions, dtype=torch.long, device=self.device)
     
     def update(self, next_obs):
         self.next_states = next_obs.to(self.device)
@@ -139,7 +141,7 @@ class SARSA(Agent):
             self.summary_writer.add_scalar("losses/sarsa_loss", loss.item(), self.update_count)
             self.summary_writer.add_scalar("charts/epsilon", self.epsilon, self.update_count)
             self.summary_writer.add_scalar("charts/q_values_mean", curr_q_sa.mean().item(), self.update_count)
-        
+            
     def add_to_buffer(self, obs, actions, rewards, dones, logprobs=None, values=None):
         self.curr_states = obs.to(self.device)
         self.curr_actions = actions.to(self.device)

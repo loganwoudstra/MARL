@@ -1,6 +1,6 @@
 ## PPO
 
-1. CC run ppo
+1. CC
 ```
 sbatch scripts/cc_script.sh \
   16 \
@@ -20,17 +20,16 @@ sbatch scripts/cc_script.sh \
   global_obs
 ```
 ## SARSA
-1. local run sarsa
+1. local
 ```
 python main.py --save-path models --num-agents 1 --num-envs 1 --layout overcooked_cramped_room_v0 --total-steps 20000000 --seed 2 --log --gamma 0.99 --lr 3e-4 --data-path data --feature global_obs --algorithm sarsa
 ```
 
-2. CC run sarsa
+2. CC
 ```
 sbatch scripts/CC_script_sarsa.sh \
   overcooked_cramped_room_v0 \
-  1 \
-  6000 \
+  5_000_000 \
   2 \
   3e-4 \
   0.99 \
@@ -44,7 +43,23 @@ sbatch scripts/CC_script_sarsa.sh \
 ```
 
 ## SAC
-1. local run sac
+1. local
 ```
-python main.py --save-path models --num-agents 1 --num-envs 1 --layout overcooked_cramped_room_v0 --total-steps 20000000 --seed 2 --log --gamma 0.99 --lr 3e-4 --batch-size-sac 256 --data-path data --feature global_obs --algorithm sac
+python main.py --save-path models --num-agents 1 --num-envs 1 --layout overcooked_cramped_room_v0 --total-steps 10000000 --seed 2 --log --gamma 0.99 --lr 3e-4 --data-path data --feature global_obs --algorithm sac --batch-size-sac 128
+```
+
+2. CC
+```
+sbatch scripts/CC_script_sac.sh \
+  128 \
+  5_000_000 \
+  2 \
+  0.99 \
+  1e-4 \
+  100_000 \
+  256 \
+  0.01 \
+  data/sac \
+  overcooked_cramped_room_v0 \
+  global_obs
 ```
