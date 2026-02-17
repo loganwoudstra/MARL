@@ -1,5 +1,5 @@
 
-from MAPPO import MAPPO
+from .MAPPO import MAPPO
 import torch
 
 

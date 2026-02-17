@@ -7,3 +7,5 @@ gifenv/
 gifs/
 logs/
 data/
+.venv/
+plots/

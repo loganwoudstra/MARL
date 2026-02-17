@@ -4,7 +4,7 @@ Train petting zoo MPE
 
 
 from pettingzoo.mpe import simple_spread_v3
-from MAPPO import MAPPO
+from agents import MAPPO
 from agent_environment import mpe_environment_loop 
 import argparse
 import torch

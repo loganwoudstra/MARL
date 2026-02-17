@@ -4,7 +4,7 @@ Test script for QMIX implementation
 """
 import torch
 import numpy as np
-from QMIX import QMIX, QNetwork, MixingNetwork, QMixBuffer
+from agents.QMIX import QMIX, QNetwork, MixingNetwork, QMixBuffer
 
 def test_qnetwork():
     """Test individual Q-network"""

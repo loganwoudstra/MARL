@@ -16,7 +16,7 @@ export data=$SLURM_TMPDIR/data
 module load python/3.10
 module load cuda
 module load gcc opencv/4.9.0
-source /home/truonggi/projects/aip-mtaylor3/truonggi/MARL/env/bin/activate 
+source /home/lwoudstr/links/projects/def-mtaylor3/lwoudstr/MARL/.venv/bin/activate 
 
 echo $1  # layout
 echo $2  # num_agents
@@ -35,7 +35,7 @@ echo ${14} # hidden_dim
 echo ${15} # data_path
 echo ${16} # feature
 
-python3 ../main.py --algorithm qmix --save-path models --num-agents $2 --num-envs 1 --layout $1 \
+python3 main.py --algorithm qmix --save-path models --num-agents $2 --num-envs 1 --layout $1 \
 --num-episodes $3 --seed $4 --lr $5 --gamma $6 \
 --epsilon-start $7 --epsilon-end $8 --epsilon-decay $9 --target-update-freq ${10} \
 --buffer-size ${11} --batch-size-qmix ${12} --mixing-embed-dim ${13} --hidden-dim ${14} \
