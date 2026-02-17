@@ -3,7 +3,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks-per-node=2
 #SBATCH --mem=32G
-#SBATCH --time=12:00:00
+#SBATCH --time=48:00:00
 #SBATCH --account=def-mtaylor3
 #SBATCH --output=/home/lwoudstr/links/scratch/slurm_out/%A.out
 

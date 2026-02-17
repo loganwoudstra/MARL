@@ -21,7 +21,7 @@ class Network(nn.Module):
             nn.ReLU(),
             layer_init(nn.Linear(hidden_dim, hidden_dim)),
             nn.ReLU(),
-            layer_init(nn.Linear(hidden_dim, action_dim))
+            layer_init(nn.Linear(hidden_dim, action_dim), std=0.01)
         )
     
     def forward(self, obs):
@@ -115,15 +115,22 @@ class SAC(Agent):
         
         # tempature
         self.log_alpha = torch.tensor(
-            np.log(1.0), requires_grad=True, device=self.device
+            np.log(0.1), requires_grad=True, device=self.device
         )
         self.alpha = self.log_alpha.exp()
+        # self.alpha = 1.0
+        # print(f"Alpha = {self.alpha}")
         self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=lr)
-        # self.target_entropy = 0.98 * -np.log(1.0 / self.action_dim)
-        self.target_entropy = 0.5 * -np.log(action_dim)
+        self.target_entropy = 0.98 * -np.log(1.0 / self.action_dim)
+        # self.target_entropy = 0.5 * -np.log(1.0 / action_dim)
+        # self.target_entropy = 0.5 * -np.log(action_dim)
+
         
     def act(self, obs, state=None, training=True):
-        # TODO: while in collection phase, take random actions
+        if self.update_count <= self.start_updating_steps:
+            actions = torch.randint(0, self.action_dim, (self.num_agents,))
+            return actions, None, None, None
+        
         with torch.no_grad():
             obs_batch = obs.to(self.device) # [num_agents, obs_dim]
             logits = self.actor(obs_batch) # [num_agents, action_dim]
@@ -174,20 +181,21 @@ class SAC(Agent):
         dones = dones.to(self.device)
         
         # distribution is used for actor and tempature
-        logits = self.actor(obs)
-        dist = torch.distributions.Categorical(logits=logits)
+        # logits = self.actor(obs)
+        # dist = torch.distributions.Categorical(logits=logits)
         
         # q-values used for critics and actor update
-        q1_vals_all = self.critic1(obs)
-        q2_vals_all = self.critic2(obs)
-        
-        self._critic_update(q1_vals_all, q2_vals_all, actions, rewards, next_obs, dones)
-        self._actor_update(q1_vals_all, q2_vals_all, dist)
+        # with torch.no_grad():  # critics only use obs as input, no need to track grads for actor
+        self._critic_update(obs, actions, rewards, next_obs, dones)
+        if self.update_count % 4 == 0:
+            self._actor_update(obs)
         
         # if self.update_count >= 50_000: # delay alpha learning
-        self._alpha_update(dist)
+        self._alpha_update(obs)
+        # if self.log and self.summary_writer:
+        #     self.summary_writer.add_scalar("charts/alpha", self.alpha, self.update_count)
         
-    def _critic_update(self, q1_vals_all, q2_vals_all, actions, rewards, next_obs, dones):
+    def _critic_update(self, obs, actions, rewards, next_obs, dones):
         with torch.no_grad():
             next_logits = self.actor(next_obs)
             next_dist = torch.distributions.Categorical(logits=next_logits)
@@ -201,20 +209,20 @@ class SAC(Agent):
             next_v = (next_probs * (next_min_q - self.alpha * next_log_probs)).sum(dim=-1)
             target_q_vals = rewards + self.gamma * (1 - dones) * next_v
             
-        q1_vals = q1_vals_all.gather(2, actions.unsqueeze(-1)).squeeze(-1)
-        q2_vals = q2_vals_all.gather(2, actions.unsqueeze(-1)).squeeze(-1)
+        q1_vals = self.critic1(obs).gather(2, actions.unsqueeze(-1)).squeeze(-1)
+        q2_vals = self.critic2(obs).gather(2, actions.unsqueeze(-1)).squeeze(-1)
         
         critic1_loss = F.mse_loss(q1_vals, target_q_vals)
         critic2_loss = F.mse_loss(q2_vals, target_q_vals)
         
         self.critic1_optimizer.zero_grad()
         critic1_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), 10.0)
+        torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), 10.0)
         self.critic1_optimizer.step()
         
         self.critic2_optimizer.zero_grad()
         critic2_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), 10.0)
+        torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), 10.0)
         self.critic2_optimizer.step()
         
         if self.log and self.summary_writer:
@@ -223,23 +231,30 @@ class SAC(Agent):
             self.summary_writer.add_scalar("charts/q1_values_mean", q1_vals.mean().item(), self.update_count)
             self.summary_writer.add_scalar("charts/q2_values_mean", q2_vals.mean().item(), self.update_count)
     
-    def _actor_update(self, q1_vals_all, q2_vals_all, dist):  
+    def _actor_update(self, obs):  
+        logits = self.actor(obs)
+        dist = torch.distributions.Categorical(logits=logits)
         probs = dist.probs
         log_probs = dist.logits - torch.logsumexp(dist.logits, dim=-1, keepdim=True)
         
-        min_q = torch.min(q1_vals_all, q2_vals_all).detach()
+        with torch.no_grad(): 
+            q1_vals_all = self.critic1(obs)
+            q2_vals_all = self.critic2(obs)
+            min_q = torch.min(q1_vals_all, q2_vals_all)
         
         actor_loss = (probs * (self.alpha * log_probs - min_q)).sum(dim=-1).mean()
         
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 10.0)
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 10.0)
         self.actor_optimizer.step()
         
         if self.log and self.summary_writer:
             self.summary_writer.add_scalar("losses/actor_loss", actor_loss.item(), self.update_count)
     
-    def _alpha_update(self, dist):
+    def _alpha_update(self, obs):
+        logits = self.actor(obs)
+        dist = torch.distributions.Categorical(logits=logits)
         entropy = dist.entropy().mean()
         alpha_loss = -(self.log_alpha * (entropy - self.target_entropy).detach())
         # log_probs = dist.logits - torch.logsumexp(dist.logits, dim=-1, keepdim=True)
@@ -247,8 +262,9 @@ class SAC(Agent):
         self.alpha_optimizer.zero_grad()
         
         alpha_loss.backward()
+        torch.nn.utils.clip_grad_norm_([self.log_alpha], 10.0)
         self.alpha_optimizer.step()
-        self.log_alpha.data.clamp_(min=-5, max=2)
+        self.log_alpha.data.clamp_(min=-10, max=2)
         self.alpha = self.log_alpha.exp()
         
         if self.log and self.summary_writer:
@@ -296,7 +312,7 @@ class SAC(Agent):
                 'actor_optimizer': self.actor_optimizer.state_dict(),
                 'critic1_optimizer': self.critic1_optimizer.state_dict(),
                 'critic2_optimizer': self.critic2_optimizer.state_dict(),
-                'alpha_optimizer': self.alpha_optimizer.state_dict(),
+                # 'alpha_optimizer': self.alpha_optimizer.state_dict(),
             },  f"{self.save_path}_sac_full.pth")
             print(f"SAC model saved to {self.save_path}")
     
@@ -318,6 +334,6 @@ class SAC(Agent):
         self.actor_optimizer.load_state_dict(checkpoint['actor_optimizer'])
         self.critic1_optimizer.load_state_dict(checkpoint['critic1_optimizer'])
         self.critic2_optimizer.load_state_dict(checkpoint['critic2_optimizer'])
-        self.alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer'])
+        # self.alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer'])
         
         print(f"SAC model loaded from {path}")

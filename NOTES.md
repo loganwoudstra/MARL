@@ -55,11 +55,14 @@ sbatch scripts/CC_script_sac.sh \
   5_000_000 \
   2 \
   0.99 \
-  1e-4 \
-  100_000 \
+  3e-5 \
+  250_000 \
   256 \
   0.01 \
   data/sac \
   overcooked_cramped_room_v0 \
   global_obs
 ```
+
+
+tensorboard --logdir logs/run__1770182592 --port 6006 --load_fast=false
