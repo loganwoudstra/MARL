@@ -3,7 +3,7 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --ntasks-per-node=2
 #SBATCH --mem=32G
-#SBATCH --time=48:00:00
+#SBATCH --time=84:00:00
 #SBATCH --account=def-mtaylor3
 #SBATCH --output=/home/lwoudstr/links/scratch/slurm_out/%A.out
 
@@ -23,10 +23,13 @@ echo "lr: $5"
 echo "buffer_size: $6"
 echo "hidden_dim: $7"
 echo "tau: $8"
-echo "data_path: $9"
-echo "layout: ${10}"
-echo "feature: ${11}"
+echo "grad_norm_clip: $9"
+echo "anneal_scale: ${10}"
+echo "data_path: ${11}"
+echo "layout: ${12}"
+echo "feature: ${13}"
 
 python3 main.py --algorithm sac --save-path models --num-agents 1 --num-envs 1 --num-steps 1 \
 --batch-size-sac $1 --total-steps $2 --seed $3 --log --gamma $4 --lr $5 --buffer-size $6 --hidden-dim $7 --tau $8 \
---data-path $9 --layout ${10} --feature ${11}
+--grad-norm-clip $9 --anneal-scale ${10} \
+--data-path ${11} --layout ${12} --feature ${13}

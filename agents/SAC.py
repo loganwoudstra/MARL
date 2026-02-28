@@ -6,7 +6,8 @@ import os
 import random
 from .agent import Agent
 from collections import deque
-import math
+
+T_MAX = 1_000_000
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -80,6 +81,8 @@ class SAC(Agent):
         tau=0.005,
         buffer_size=5000,
         batch_size=32,
+        grad_norm_clip=5.0,
+        anneal_scale=1.0, # default no annealing
         start_updating_steps=10_000,
         save_path=None, 
         log_dir=None, 
@@ -94,6 +97,7 @@ class SAC(Agent):
         self.batch_size = batch_size
         self.update_count = 0
         self.episode_count = 0
+        self.grad_norm_clip = grad_norm_clip
         
         self.critic1 = Network(obs_dim, action_dim, hidden_dim).to(self.device)
         self.critic2 = Network(obs_dim, action_dim, hidden_dim).to(self.device)
@@ -104,10 +108,13 @@ class SAC(Agent):
         self.target_critic2.load_state_dict(self.critic2.state_dict())
         
         self.critic1_optimizer = torch.optim.Adam(self.critic1.parameters(), lr=lr)
+        self.critic1_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.critic1_optimizer, T_max=T_MAX, eta_min=lr*anneal_scale)
         self.critic2_optimizer = torch.optim.Adam(self.critic2.parameters(), lr=lr)
+        self.critic2_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.critic2_optimizer, T_max=T_MAX, eta_min=lr*anneal_scale)
         
         self.actor = Network(obs_dim, action_dim, hidden_dim).to(self.device)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr)
+        self.actor_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.actor_optimizer, T_max=T_MAX, eta_min=lr*anneal_scale)
         
         # Experience replay buffer
         self.buffer = Buffer(buffer_size, num_agents, obs_dim)
@@ -118,12 +125,11 @@ class SAC(Agent):
             np.log(0.1), requires_grad=True, device=self.device
         )
         self.alpha = self.log_alpha.exp()
-        # self.alpha = 1.0
-        # print(f"Alpha = {self.alpha}")
         self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=lr)
+        self.alpha_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.alpha_optimizer, T_max=T_MAX, eta_min=lr*anneal_scale)
         self.target_entropy = 0.98 * -np.log(1.0 / self.action_dim)
-        # self.target_entropy = 0.5 * -np.log(1.0 / action_dim)
-        # self.target_entropy = 0.5 * -np.log(action_dim)
+        
+        # print("WITH ANNEALING")
 
         
     def act(self, obs, state=None, training=True):
@@ -217,13 +223,15 @@ class SAC(Agent):
         
         self.critic1_optimizer.zero_grad()
         critic1_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), 10.0)
+        torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), self.grad_norm_clip )
         self.critic1_optimizer.step()
+        self.critic1_scheduler.step()
         
         self.critic2_optimizer.zero_grad()
         critic2_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), 10.0)
+        torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), self.grad_norm_clip )
         self.critic2_optimizer.step()
+        self.critic2_scheduler.step()
         
         if self.log and self.summary_writer:
             self.summary_writer.add_scalar("losses/critic1_loss", critic1_loss.item(), self.update_count)
@@ -246,8 +254,9 @@ class SAC(Agent):
         
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 10.0)
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.grad_norm_clip)
         self.actor_optimizer.step()
+        self.actor_scheduler.step()
         
         if self.log and self.summary_writer:
             self.summary_writer.add_scalar("losses/actor_loss", actor_loss.item(), self.update_count)
@@ -262,8 +271,9 @@ class SAC(Agent):
         self.alpha_optimizer.zero_grad()
         
         alpha_loss.backward()
-        torch.nn.utils.clip_grad_norm_([self.log_alpha], 10.0)
+        torch.nn.utils.clip_grad_norm_([self.log_alpha], self.grad_norm_clip)
         self.alpha_optimizer.step()
+        self.alpha_scheduler.step()
         self.log_alpha.data.clamp_(min=-10, max=2)
         self.alpha = self.log_alpha.exp()
         

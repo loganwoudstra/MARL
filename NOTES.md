@@ -59,6 +59,8 @@ sbatch scripts/CC_script_sac.sh \
   250_000 \
   256 \
   0.01 \
+  10.0 \
+  1.0 \
   data/sac \
   overcooked_cramped_room_v0 \
   global_obs

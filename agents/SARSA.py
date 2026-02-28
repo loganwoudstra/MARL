@@ -65,6 +65,7 @@ class SARSA(Agent):
         self.next_actions = None
         
         # use target network for stability
+        # TODO: remove target
         self.q_network = QNetwork(obs_dim, action_dim, hidden_dim).to(self.device)
         self.target_q_network = QNetwork(obs_dim, action_dim, hidden_dim).to(self.device)
         self.target_q_network.load_state_dict(self.q_network.state_dict())

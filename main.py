@@ -168,6 +168,8 @@ def main():
     # SAC
     parser.add_argument('--tau', type=float, default=0.005, help='Tau for soft update')
     parser.add_argument('--batch-size-sac', type=int, default=32, help='Batch size for SAC')
+    parser.add_argument('--anneal-scale', type=float, default=1.0, help='Set eta_min to lr*anneal_scale')
+    parser.add_argument('--grad-norm-clip', type=float, default=10.0, help='Grad clip norm value')
 
     # Semi-Gradient SARSA specific arguments
     parser.add_argument('--step-size', type=float, default=0.01, help='Step size for Semi-Gradient SARSA')
@@ -286,6 +288,8 @@ def main():
                 tau=args.tau,
                 buffer_size=args.buffer_size,
                 batch_size=args.batch_size_sac,
+                grad_norm_clip=args.grad_norm_clip,
+                anneal_scale=args.anneal_scale,
                 save_path=save_path,
                 log_dir=log_dir,
                 log=args.log,
