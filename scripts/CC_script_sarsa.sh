@@ -1,36 +1,25 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --gpus-per-node=1
 #SBATCH --ntasks-per-node=2
 #SBATCH --mem=32G
-#SBATCH --time=12:00:00
+#SBATCH --time=4:00:00
 #SBATCH --account=def-mtaylor3
 #SBATCH --output=/home/lwoudstr/links/scratch/slurm_out/%A.out
-
 
 export results=$SLURM_TMPDIR/results
 export data=$SLURM_TMPDIR/data
 
 module load python/3.10
-module load cuda
 module load gcc opencv/4.9.0
 source /home/lwoudstr/links/projects/def-mtaylor3/lwoudstr/MARL/.venv/bin/activate 
 
-echo "layout: $1"
-echo "total_steps: $2"
-echo "seed: $3"
-echo "lr: $4"
-echo "gamma: $5"
-echo "epsilon_start: $6" 
-echo "epsilon_end :$7"
-echo "epsilon_decay: $8" 
-echo "target_update_freq: $9" 
-echo "hidden_dim: ${10}" 
-echo "data_path: ${11}"
-echo "feature: ${12}"
+echo "num_episodes: $1"
+echo "alpha: $2"
+echo "lambda: $3"
+echo "gamma: $4"
+echo "epsilon: $5"
+echo "seed: $6"
+echo "data_path: $7"
+echo "layout: $8"
 
-python3 main.py --algorithm sarsa --save-path models --num-agents 1 --num-envs 1 --layout $1 \
---total-steps $2 --seed $3 --lr $4 --gamma $5 \
---epsilon-start $6 --epsilon-end $7 --epsilon-decay $8 --target-update-freq $9 \
---hidden-dim ${10} \
---data-path ${11} --feature ${12} --save
+python3 sarsalambda.py --num_episodes $1 --alpha $2 --lambda_ $3 --gamma $4 --epsilon $5 --seed $6 --data_path $7 --layout $8 

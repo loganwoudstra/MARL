@@ -6,6 +6,7 @@ video/
 gifenv/
 gifs/
 logs/
+sarsa_lambda_logs/
 data/
 .venv/
 plots/

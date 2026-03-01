@@ -64,5 +64,20 @@ sbatch scripts/CC_script_sac.sh \
   global_obs
 ```
 
+## SARSA
+1. CC
+```
+sbatch scripts/CC_script_sarsa.sh \
+  1000 \
+  0.1 \
+  0.9 \
+  0.999 \
+  0.1 \
+  2 \
+  data/sarsa \
+  overcooked_cramped_room_v0
+```
 
 tensorboard --logdir logs/run__1770182592 --port 6006 --load_fast=false
+
+
