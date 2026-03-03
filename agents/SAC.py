@@ -17,13 +17,14 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 class Network(nn.Module):
     def __init__(self, obs_dim, action_dim, hidden_dim=256):
         super().__init__()
-        self.network = nn.Sequential(
-            layer_init(nn.Linear(obs_dim, hidden_dim)),
-            nn.ReLU(),
-            layer_init(nn.Linear(hidden_dim, hidden_dim)),
-            nn.ReLU(),
-            layer_init(nn.Linear(hidden_dim, action_dim), std=0.01)
-        )
+        # self.network = nn.Sequential(
+        #     layer_init(nn.Linear(obs_dim, hidden_dim)),
+        #     nn.ReLU(),
+        #     layer_init(nn.Linear(hidden_dim, hidden_dim)),
+        #     nn.ReLU(),
+        #     layer_init(nn.Linear(hidden_dim, action_dim), std=0.01)
+        # )
+        self.network = nn.Linear(obs_dim, action_dim)
     
     def forward(self, obs):
         return self.network(obs)
