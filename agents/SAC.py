@@ -17,14 +17,14 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 class Network(nn.Module):
     def __init__(self, obs_dim, action_dim, hidden_dim=256):
         super().__init__()
-        # self.network = nn.Sequential(
-        #     layer_init(nn.Linear(obs_dim, hidden_dim)),
-        #     nn.ReLU(),
-        #     layer_init(nn.Linear(hidden_dim, hidden_dim)),
-        #     nn.ReLU(),
-        #     layer_init(nn.Linear(hidden_dim, action_dim), std=0.01)
-        # )
-        self.network = nn.Linear(obs_dim, action_dim)
+        self.network = nn.Sequential(
+            layer_init(nn.Linear(obs_dim, hidden_dim)),
+            nn.ReLU(),
+            layer_init(nn.Linear(hidden_dim, hidden_dim)),
+            nn.ReLU(),
+            layer_init(nn.Linear(hidden_dim, action_dim), std=0.01)
+        )
+        # self.network = nn.Linear(obs_dim, action_dim)
     
     def forward(self, obs):
         return self.network(obs)
@@ -176,6 +176,16 @@ class SAC(Agent):
 
         self.update_count += 1
         
+        if self.save_path is not None and self.update_count % 100 == 0:
+            bool_to_str = lambda x: "centralised" if x else "decentralised"
+            final_path = os.path.join(PROJECT_ROOT, self.save_path, f"{bool_to_str(self.args.centralised)}_policy_{self.args.num_agents}_agents_{self.args.layout}_seed_{self.args.seed}.pth")
+
+            torch.save(self.policy.state_dict(), final_path)
+            print(f'saved model at {self.save_path}')
+        # Reset the buffer
+        self.buffer.reset()
+    
+        
     def _update_ac_networks(self):
         """update both critics, actor, and tempature"""
         # Sample batch from buffer
@@ -323,7 +333,7 @@ class SAC(Agent):
                 'actor_optimizer': self.actor_optimizer.state_dict(),
                 'critic1_optimizer': self.critic1_optimizer.state_dict(),
                 'critic2_optimizer': self.critic2_optimizer.state_dict(),
-                # 'alpha_optimizer': self.alpha_optimizer.state_dict(),
+                'alpha_optimizer': self.alpha_optimizer.state_dict(),
             },  f"{self.save_path}_sac_full.pth")
             print(f"SAC model saved to {self.save_path}")
     
@@ -345,6 +355,6 @@ class SAC(Agent):
         self.actor_optimizer.load_state_dict(checkpoint['actor_optimizer'])
         self.critic1_optimizer.load_state_dict(checkpoint['critic1_optimizer'])
         self.critic2_optimizer.load_state_dict(checkpoint['critic2_optimizer'])
-        # self.alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer'])
+        self.alpha_optimizer.load_state_dict(checkpoint['alpha_optimizer'])
         
         print(f"SAC model loaded from {path}")

@@ -52,15 +52,15 @@ python main.py --save-path models --num-agents 1 --num-envs 1 --layout overcooke
 ```
 sbatch scripts/CC_script_sac.sh \
   128 \
-  5_000_000 \
+  10_000_000 \
   2 \
   0.99 \
   3e-5 \
-  250_000 \
+  500_000 \
   256 \
   0.01 \
   10.0 \
-  1.0 \
+  0.1 \
   data/sac \
   overcooked_cramped_room_v0 \
   global_obs

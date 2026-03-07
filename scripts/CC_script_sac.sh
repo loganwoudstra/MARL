@@ -29,7 +29,7 @@ echo "data_path: ${11}"
 echo "layout: ${12}"
 echo "feature: ${13}"
 
-python3 main.py --algorithm sac --save-path models --num-agents 1 --num-envs 1 --num-steps 1 \
+python3 main.py --algorithm sac --save-path models --save --num-agents 1 --num-envs 1 --num-steps 1 \
 --batch-size-sac $1 --total-steps $2 --seed $3 --log --gamma $4 --lr $5 --buffer-size $6 --hidden-dim $7 --tau $8 \
 --grad-norm-clip $9 --anneal-scale ${10} \
 --data-path ${11} --layout ${12} --feature ${13}
