@@ -124,10 +124,10 @@ class globalObs(feature.Feature):
         for feature in self.agent_features:
             feat_vec = feature.generate(env, player_id)
             # Normalize only distance features
-            if isinstance(feature, (overcooked_features.ClosestObj,
-                                    overcooked_features.DistToOtherPlayers,
-                                    NClosestPotFeatures)):
-                feat_vec = self.normalize_distance(feat_vec)
+            # if isinstance(feature, (overcooked_features.ClosestObj,
+            #                         overcooked_features.DistToOtherPlayers,
+            #                         NClosestPotFeatures)):
+            #     feat_vec = self.normalize_distance(feat_vec)
             encoded_features.append(feat_vec)
         return np.hstack(encoded_features)
 

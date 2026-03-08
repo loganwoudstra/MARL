@@ -8,6 +8,7 @@ from .agent import Agent
 from collections import deque
 
 T_MAX = 1_000_000
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -177,15 +178,8 @@ class SAC(Agent):
         self.update_count += 1
         
         if self.save_path is not None and self.update_count % 100 == 0:
-            bool_to_str = lambda x: "centralised" if x else "decentralised"
-            final_path = os.path.join(PROJECT_ROOT, self.save_path, f"{bool_to_str(self.args.centralised)}_policy_{self.args.num_agents}_agents_{self.args.layout}_seed_{self.args.seed}.pth")
-
-            torch.save(self.policy.state_dict(), final_path)
-            print(f'saved model at {self.save_path}')
-        # Reset the buffer
-        self.buffer.reset()
+            self.save_model()
     
-        
     def _update_ac_networks(self):
         """update both critics, actor, and tempature"""
         # Sample batch from buffer
@@ -322,7 +316,8 @@ class SAC(Agent):
     
     def save_model(self):
         if self.save_path:
-            os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
+            final_path = os.path.join(PROJECT_ROOT, self.save_path, f"sac_{self.args.layout}_seed{self.args.seed}.pth")
+            os.makedirs(os.path.dirname(final_path), exist_ok=True)
             torch.save({
                 'actor_state_dict': self.actor.state_dict(),
                 'critic1_state_dict': self.critic1.state_dict(),
@@ -334,8 +329,8 @@ class SAC(Agent):
                 'critic1_optimizer': self.critic1_optimizer.state_dict(),
                 'critic2_optimizer': self.critic2_optimizer.state_dict(),
                 'alpha_optimizer': self.alpha_optimizer.state_dict(),
-            },  f"{self.save_path}_sac_full.pth")
-            print(f"SAC model saved to {self.save_path}")
+            },  final_path)
+            print(f"SAC model saved to {final_path}")
     
     def load_model(self, path):
         checkpoint = torch.load(path, map_location=self.device)
