@@ -9,6 +9,7 @@ from collections import deque
 
 T_MAX = 1_000_000
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+LOG_INTERVAL = 1000
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
@@ -238,7 +239,7 @@ class SAC(Agent):
         self.critic2_optimizer.step()
         self.critic2_scheduler.step()
         
-        if self.log and self.summary_writer:
+        if self.log and self.summary_writer and self.update_count % LOG_INTERVAL == 0:
             self.summary_writer.add_scalar("losses/critic1_loss", critic1_loss.item(), self.update_count)
             self.summary_writer.add_scalar("losses/critic2_loss", critic2_loss.item(), self.update_count)
             self.summary_writer.add_scalar("charts/q1_values_mean", q1_vals.mean().item(), self.update_count)
@@ -263,7 +264,7 @@ class SAC(Agent):
         self.actor_optimizer.step()
         self.actor_scheduler.step()
         
-        if self.log and self.summary_writer:
+        if self.log and self.summary_writer and self.update_count % LOG_INTERVAL == 0:
             self.summary_writer.add_scalar("losses/actor_loss", actor_loss.item(), self.update_count)
     
     def _alpha_update(self, obs):
@@ -282,7 +283,7 @@ class SAC(Agent):
         self.log_alpha.data.clamp_(min=-10, max=2)
         self.alpha = self.log_alpha.exp()
         
-        if self.log and self.summary_writer:
+        if self.log and self.summary_writer and self.update_count % LOG_INTERVAL == 0:
             self.summary_writer.add_scalar("losses/alpha_loss", alpha_loss.item(), self.update_count)
             self.summary_writer.add_scalar("charts/alpha", self.alpha, self.update_count)
             
@@ -330,7 +331,7 @@ class SAC(Agent):
                 'critic2_optimizer': self.critic2_optimizer.state_dict(),
                 'alpha_optimizer': self.alpha_optimizer.state_dict(),
             },  final_path)
-            print(f"SAC model saved to {final_path}")
+            # print(f"SAC model saved to {final_path}")
     
     def load_model(self, path):
         checkpoint = torch.load(path, map_location=self.device)
