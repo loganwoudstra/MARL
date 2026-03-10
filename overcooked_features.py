@@ -77,26 +77,26 @@ class globalObs(feature.Feature):
         self.height, self.width = env.shape  # store grid size
 
         self.agent_features = [
-            features.AgentDir(),
-            overcooked_features.OvercookedInventory(),
-            overcooked_features.NextToCounter(),
-            overcooked_features.NextToPot(),
+            features.AgentDir(), # 0-3
+            overcooked_features.OvercookedInventory(), # 4-6
+            overcooked_features.NextToCounter(), # 7-10
+            overcooked_features.NextToPot(), # 11-26
             # The (dy, dx) distance to the closest {onion, plate, platestack, onionstack, onionsoup, deliveryzone}
-            overcooked_features.ClosestObj(overcooked_grid_objects.Onion, n=4),
-            overcooked_features.ClosestObj(overcooked_grid_objects.Plate, n=4),
-            overcooked_features.ClosestObj(overcooked_grid_objects.PlateStack, n=2),
-            overcooked_features.ClosestObj(overcooked_grid_objects.OnionStack, n=2),
-            overcooked_features.ClosestObj(overcooked_grid_objects.OnionSoup, n=4),
-            overcooked_features.ClosestObj(overcooked_grid_objects.DeliveryZone, n=2),
-            overcooked_features.ClosestObj(grid_object.Counter, n=4),
+            overcooked_features.ClosestObj(overcooked_grid_objects.Onion, n=4), # 27-34
+            overcooked_features.ClosestObj(overcooked_grid_objects.Plate, n=4), # 35-42
+            overcooked_features.ClosestObj(overcooked_grid_objects.PlateStack, n=2), # 43-46
+            overcooked_features.ClosestObj(overcooked_grid_objects.OnionStack, n=2), # 47-50
+            overcooked_features.ClosestObj(overcooked_grid_objects.OnionSoup, n=4), # 51-58
+            overcooked_features.ClosestObj(overcooked_grid_objects.DeliveryZone, n=2), # 59-62
+            overcooked_features.ClosestObj(grid_object.Counter, n=4), # 63-70
             # All pot features for the closest two pots
-            NClosestPotFeatures(num_pots=2),
+            NClosestPotFeatures(num_pots=2), #71-94
             # The (dy, dx) distance to the closest other agent
-            overcooked_features.DistToOtherPlayers(num_other_players=num_agents - 1),
+            overcooked_features.DistToOtherPlayers(num_other_agents=num_agents - 1), # None (for 1 agent)
             # The (row, column) position of the agent
-            features.AgentPosition(),
+            features.AgentPosition(), # 95-96
             # The direction the agent can move in
-            features.CanMoveDirection(),
+            features.CanMoveDirection(), # 97-100
         ]
 
         full_shape = num_agents * np.sum([feature.shape for feature in self.agent_features])
@@ -138,6 +138,14 @@ class globalObs(feature.Feature):
                 player_encodings.append(self.generate_player_encoding(env, pid))
         encoding = np.hstack(player_encodings).astype(np.float32)
         assert np.array_equal(self.shape, encoding.shape)
+        
+        # total = 0
+        # print()
+        # for f in self.agent_features:
+        #     vec = f.generate(env, player_id)
+        #     print(type(f).__name__, vec.shape, f"{total}-{total+vec.shape[0] - 1}")
+        #     total += vec.shape[0]
+            
         return encoding
 
 class localObs(feature.Feature):
@@ -197,7 +205,7 @@ class localObs(feature.Feature):
             NClosestPotFeatures(num_pots=2),
             # The (dy, dx) distance to the closest other agent
             overcooked_features.DistToOtherPlayers(
-                num_other_players=num_agents - 1
+                num_other_agents=num_agents - 1
             ),
             # The (row, column) position of the agent
             features.AgentPosition(),
@@ -256,7 +264,7 @@ class MinimalSpatialOtherAgentAware(feature.Feature):
             overcooked_features.NextToCounter(),
             overcooked_features.NextToPot(),
             overcooked_features.DistToOtherPlayers(
-                num_other_players=num_agents - 1
+                num_other_agents=num_agents - 1
             ),
             # The (row, column) position of the agent
             features.AgentPosition(),
@@ -339,7 +347,7 @@ class BinaryFeature(feature.Feature):
             NClosestBinaryPotFeatures(num_pots=2, grid=env.grid),
             # The (dy, dx) distance to the closest other agent
             #overcooked_features.DistToOtherPlayers(
-            #    num_other_players=num_agents - 1
+            #    num_other_agents=num_agents - 1
             #),
             # The (row, column) position of the agent
             BinaryAgentPosition(grid=env.grid),
@@ -441,7 +449,7 @@ class ReducedRange(feature.Feature):
             overcooked_features.ClosestObj(focal_object_type=overcooked_grid_objects.DeliveryZone, n=1),
             overcooked_features.ClosestObj(focal_object_type=grid_object.Counter, n=1),
             NClosestPotFeatures(num_pots=1),  # Only closest pot
-            overcooked_features.DistToOtherPlayers(num_other_players=num_agents - 1),
+            overcooked_features.DistToOtherPlayers(num_other_agents=num_agents - 1),
             features.AgentPosition(),
             features.CanMoveDirection(),
         ]
@@ -483,7 +491,7 @@ class ExtendedRange(feature.Feature):
             overcooked_features.ClosestObj(focal_object_type=overcooked_grid_objects.DeliveryZone, n=3),
             overcooked_features.ClosestObj(focal_object_type=grid_object.Counter, n=6),
             NClosestPotFeatures(num_pots=3),  # More pots
-            overcooked_features.DistToOtherPlayers(num_other_players=num_agents - 1),
+            overcooked_features.DistToOtherPlayers(num_other_agents=num_agents - 1),
             features.AgentPosition(),
             features.CanMoveDirection(),
         ]
