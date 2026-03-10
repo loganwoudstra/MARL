@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
-#SBATCH --ntasks-per-node=2
-#SBATCH --mem=32G
-#SBATCH --time=24:00:00
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=8G
+#SBATCH --time=84:00:00
 #SBATCH --account=def-mtaylor3
 #SBATCH --output=/home/lwoudstr/links/scratch/slurm_out/%A.out
 
@@ -33,3 +33,6 @@ python3 main.py --algorithm sac --save-path models --save --num-agents 1 --num-e
 --batch-size-sac $1 --total-steps $2 --seed $3 --log --gamma $4 --lr $5 --buffer-size $6 --hidden-dim $7 --tau $8 \
 --grad-norm-clip $9 --anneal-scale ${10} \
 --data-path ${11} --layout ${12} --feature ${13}
+
+mkdir -p $PROJECT/MARL/logs
+cp -r $SLURM_TMPDIR/logs $PROJECT/MARL/logs/$SLURM_JOB_ID

@@ -1,5 +1,6 @@
 import torch
 from torch.utils.tensorboard import SummaryWriter
+import os
 
 class Agent():
     def __init__(self, env, num_agents, save_path=None, log_dir=None, log=False, args=None):
@@ -14,7 +15,10 @@ class Agent():
         self.args = args
         
         if log:
-            self.summary_writer = SummaryWriter(log_dir=log_dir)
+            if "SLURM_TMPDIR" in os.environ:
+                log_dir = os.path.join(os.environ["SLURM_TMPDIR"], log_dir)
+            os.makedirs(log_dir, exist_ok=True)
+            self.summary_writer = SummaryWriter(log_dir=log_dir, flush_secs=120)
         else:
             self.summary_writer = None
             
