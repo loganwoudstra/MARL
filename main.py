@@ -14,7 +14,7 @@ import supersuit as ss
 from model import Agent 
 import torch
 import argparse
-from agents import MAPPO, CMAPPO, QMIX, SARSA, SAC
+from agents import MAPPO, CMAPPO, QMIX, SARSA, SAC, BFS
 from semi_gradient_sarsa import SemiGradientSARSA, ConstantEpsilonGreedyExploration, SarsaFeatureExtractor
 from agent_environment import agent_environment_loop, qmix_environment_loop, agent_environment_sarsa_loop
 from buffer import Buffer
@@ -121,7 +121,7 @@ def main():
     parser.add_argument("--feature", type=str, default="global_obs", help="feature to use for the environment")
     parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
     parser.add_argument('--centralised', action='store_true', default=False, help='False is decentralised, True is centralised')
-    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix', 'sarsa', 'sac'], help='Algorithm to use')
+    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix', 'sarsa', 'sac', 'bfs'], help='Algorithm to use')
     
     # ppo args
     """
@@ -213,7 +213,7 @@ def main():
     sigle_agent_action_dim = env.action_spaces[0].n  # int
     
     # Select algorithm
-    if args.algorithm in ['qmix', 'sarsa', 'sac']:
+    if args.algorithm in ['qmix', 'sarsa', 'sac', 'bfs']:
         # We assume num_envs = 1 for simplicity
         if args.num_envs != 1:
             print(f"Warning: QMIX/SARSA/SAC implementation assumes num_envs=1, but got num_envs={args.num_envs}. Setting num_envs=1.")
@@ -296,6 +296,17 @@ def main():
                 args=args
             )
             num_updates = args.total_steps # update every step once the buffer has requried size
+        elif args.algorithm == 'bfs':
+            agent = BFS(
+                env=vec_env,
+                num_agents=args.num_agents,
+                save_path=save_path,
+                log_dir=log_dir,
+                log=args.log,
+                args=args
+            )
+            num_updates = args.total_steps # doesnt actually matter
+        
     elif args.algorithm == 'mappo' or (args.algorithm == 'mappo' and not args.centralised):
         print('Using decentralised MAPPO')
         net = Agent(obs_space, action_space, num_agents=args.num_agents, num_envs=args.num_envs).to(device)
@@ -360,6 +371,8 @@ def main():
             return 'sarsa'
         elif args.algorithm == 'sac':
             return 'sac'
+        elif args.algorithm == 'bfs':
+            return 'bfs'
         elif args.algorithm == 'mappo' or args.algorithm == 'cmappo':
             return "centralised" if args.centralised else "decentralised"
         else:
