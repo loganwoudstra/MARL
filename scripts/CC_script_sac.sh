@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
-#SBATCH --ntasks-per-node=1
 #SBATCH --mem=8G
-#SBATCH --time=84:00:00
+#SBATCH --time=24:00:00
 #SBATCH --account=def-mtaylor3
 #SBATCH --output=/home/lwoudstr/links/scratch/slurm_out/%A.out
 
 export results=$SLURM_TMPDIR/results
 export data=$SLURM_TMPDIR/data
+PROJECT=/lustre09/project/6051514/lwoudstr
 
 module load python/3.10
 module load cuda
