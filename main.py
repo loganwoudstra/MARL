@@ -14,7 +14,7 @@ import supersuit as ss
 from model import Agent 
 import torch
 import argparse
-from agents import MAPPO, CMAPPO, QMIX, SARSA, SAC, BFS
+from agents import MAPPO, CMAPPO, QMIX, SARSA, SAC, BFS, DQN
 from semi_gradient_sarsa import SemiGradientSARSA, ConstantEpsilonGreedyExploration, SarsaFeatureExtractor
 from agent_environment import agent_environment_loop, qmix_environment_loop, agent_environment_sarsa_loop
 from buffer import Buffer
@@ -121,7 +121,7 @@ def main():
     parser.add_argument("--feature", type=str, default="global_obs", help="feature to use for the environment")
     parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
     parser.add_argument('--centralised', action='store_true', default=False, help='False is decentralised, True is centralised')
-    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix', 'sarsa', 'sac', 'bfs'], help='Algorithm to use')
+    parser.add_argument('--algorithm', type=str, default='mappo', choices=['mappo', 'cmappo', 'qmix', 'sarsa', 'sac', 'bfs', 'dqn'], help='Algorithm to use')
     
     # ppo args
     """
@@ -147,10 +147,10 @@ def main():
     parser.add_argument('--max-grad-norm', type=float, default=0.5, help='max gradient norm')
     parser.add_argument('--lam', type=float, default=0.95, help='lambda for GAE')
     
-    # NN function approximator (QMIX, SARSA, SAC)
+    # NN function approximator (QMIX, SARSA, SAC, DQN)
     parser.add_argument('--hidden-dim', type=int, default=256, help='Hidden layer dimension')
     
-    # REPLAY BUFFER (QMIX, SAC)
+    # REPLAY BUFFER (QMIX, SAC, DQN)
     parser.add_argument('--buffer-size', type=int, default=5000, help='Experience replay buffer size')
     
     
@@ -165,7 +165,7 @@ def main():
     parser.add_argument('--mixing-embed-dim', type=int, default=32, help='Mixing network embedding dimension')
     parser.add_argument('--num-episodes', type=int, default=1000, help='Number of episodes for QMIX training')
     
-    # SAC
+    # SAC/DQN
     parser.add_argument('--tau', type=float, default=0.005, help='Tau for soft update')
     parser.add_argument('--batch-size-sac', type=int, default=32, help='Batch size for SAC')
     parser.add_argument('--anneal-scale', type=float, default=1.0, help='Set eta_min to lr*anneal_scale')
@@ -212,8 +212,12 @@ def main():
     single_agent_obs_dim = env.observation_spaces[0]['n_agent_overcooked_features'].shape  # 
     sigle_agent_action_dim = env.action_spaces[0].n  # int
     
+    save_path = None
+    if args.save_path:
+        save_path = os.path.join(PROJECT_ROOT, args.save_path, f"{args.algorithm}_{args.num_agents}_agents_{args.layout}_seed_{args.seed}")
+    
     # Select algorithm
-    if args.algorithm in ['qmix', 'sarsa', 'sac', 'bfs']:
+    if args.algorithm in ['qmix', 'sarsa', 'sac', 'bfs', 'dqn']:
         # We assume num_envs = 1 for simplicity
         if args.num_envs != 1:
             print(f"Warning: QMIX/SARSA/SAC implementation assumes num_envs=1, but got num_envs={args.num_envs}. Setting num_envs=1.")
@@ -227,9 +231,6 @@ def main():
         state_dim = args.num_agents * obs_dim  # Use concatenated observations as global state
         
         # We don't need the batch_size calculation from PPO
-        save_path = None
-        if args.save_path:
-            save_path = os.path.join(PROJECT_ROOT, args.save_path, f"{args.algorithm}_{args.num_agents}_agents_{args.layout}_seed_{args.seed}")
         
         if args.algorithm == 'qmix':
             print('Using QMIX algorithm')
@@ -275,9 +276,9 @@ def main():
                 args=args
             )
             num_updates = args.total_steps # update every step
-        elif args.algorithm == 'sac':
-            print('Using SAC algorithm')
-            agent = SAC(
+        elif args.algorithm == 'dqn':
+            print('Using DQN algorithm')
+            agent = DQN(
                 env=vec_env,
                 num_agents=args.num_agents,
                 obs_dim=obs_dim,
@@ -317,7 +318,7 @@ def main():
                       num_mini_batches=args.num_minibatches, ppo_epoch=args.ppo_epoch, clip_param=args.clip_param,
                     value_loss_coef=args.value_loss_coef, entropy_coef=args.entropy_coef, max_grad_norm=args.max_grad_norm,
                     gamma=args.gamma, lam=args.lam,
-                    save_path=args.save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
+                    save_path=save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
         num_updates = args.total_steps // batch_size
     elif args.algorithm == 'cmappo' or (args.algorithm == 'mappo' and args.centralised):
         print('Using centralised MAPPO')
@@ -329,7 +330,7 @@ def main():
                        num_mini_batches=args.num_minibatches, ppo_epoch=args.ppo_epoch, clip_param=args.clip_param,
                     value_loss_coef=args.value_loss_coef, entropy_coef=args.entropy_coef, max_grad_norm=args.max_grad_norm,
                     gamma=args.gamma, lam=args.lam,
-                    save_path=args.save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
+                    save_path=save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
         num_updates = args.total_steps // batch_size
     elif args.algorithm == 'sarsa':
         print('Using Semi-Gradient SARSA algorithm')

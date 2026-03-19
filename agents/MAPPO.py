@@ -47,7 +47,12 @@ class MAPPO:
 
         self.log = log  # whether to log or not
         if log:
-            self.summary_writer = SummaryWriter(log_dir=log_dir)
+            log_dir = self.log_dir
+            if "SLURM_TMPDIR" in os.environ:
+                log_dir = os.path.join(os.environ["SLURM_TMPDIR"], log_dir)
+            os.makedirs(log_dir, exist_ok=True)
+            self.log_dir = log_dir
+            self.summary_writer = SummaryWriter(log_dir=log_dir, flush_secs=120)
         else:
             self.summary_writer = None
 
@@ -226,6 +231,7 @@ class MAPPO:
         if self.save_path is not None and self.num_gradient_steps % 100 == 0:
             bool_to_str = lambda x: "centralised" if x else "decentralised"
             final_path = os.path.join(PROJECT_ROOT, self.save_path, f"{bool_to_str(self.args.centralised)}_policy_{self.args.num_agents}_agents_{self.args.layout}_seed_{self.args.seed}.pth")
+            os.makedirs(os.path.dirname(final_path), exist_ok=True)
 
             torch.save(self.policy.state_dict(), final_path)
             print(f'saved model at {self.save_path}')

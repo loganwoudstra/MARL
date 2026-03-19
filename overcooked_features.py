@@ -146,6 +146,8 @@ class globalObs(feature.Feature):
         #     print(type(f).__name__, vec.shape, f"{total}-{total+vec.shape[0] - 1}")
         #     total += vec.shape[0]
             
+        # kill
+            
         return encoding
 
 class localObs(feature.Feature):
