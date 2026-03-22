@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --gpus-per-node=1
-#SBATCH --mem=10G
+#SBATCH --mem=32G
 #SBATCH --time=10:00:00
 #SBATCH --account=def-mtaylor3
 #SBATCH --output=/home/lwoudstr/scratch/slurm_out/%A.out

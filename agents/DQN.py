@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import os
-from .agent import Agent, Buffer, Network
+from .agent import Agent, Buffer, Network, LFA
 
 T_MAX = 1_000_000
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -45,9 +45,14 @@ class DQN(Agent):
         self.grad_norm_clip = grad_norm_clip
         
         # q network
-        self.q_net = Network(obs_dim, action_dim, hidden_dim).to(self.device)
-        self.target_q_net = Network(obs_dim, action_dim, hidden_dim).to(self.device)
+        # self.q_net = Network(obs_dim, action_dim, hidden_dim).to(self.device)
+        # self.target_q_net = Network(obs_dim, action_dim, hidden_dim).to(self.device)
+        # self.target_q_net.load_state_dict(self.q_net.state_dict())
+        
+        self.q_net = LFA(obs_dim, action_dim).to(self.device)
+        self.target_q_net = LFA(obs_dim, action_dim).to(self.device).to(self.device)
         self.target_q_net.load_state_dict(self.q_net.state_dict())
+        
         self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=T_MAX, eta_min=lr*anneal_scale)
         
@@ -113,13 +118,14 @@ class DQN(Agent):
         next_obs = next_obs.to(self.device)
         dones = dones.to(self.device)
         
-        # Current Q
         q_vals = self.q_net(obs).gather(2, actions.unsqueeze(-1)).squeeze(-1)
 
-        # Target Q
         with torch.no_grad():
-            next_q = self.target_q_net(next_obs)
-            max_next_q = next_q.max(dim=-1)[0]
+            # double dqn
+            next_actions = self.q_net(next_obs).argmax(dim=-1, keepdim=True)
+            next_q_target = self.target_q_net(next_obs)
+            max_next_q = next_q_target.gather(2, next_actions).squeeze(-1)
+
             target_q = rewards + self.gamma * (1 - dones) * max_next_q
 
         loss = F.mse_loss(q_vals, target_q)

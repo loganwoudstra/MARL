@@ -1,7 +1,7 @@
 #!/bin/bash
 # MAP="cramped_room"
-MAP="coordination_ring"
-# MAP="counter_circuit"
+# MAP="coordination_ring"
+MAP="counter_circuit"
 
 # default
 sbatch scripts/CC_script_dqn.sh   128   3_000_000   2   0.99   3e-5   500_000   256   0.01   10.0 1.0  data/dqn_${MAP}_tune/0   overcooked_${MAP}_v0   global_obs

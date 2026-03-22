@@ -63,6 +63,14 @@ class Network(nn.Module):
     def forward(self, obs):
         return self.network(obs)
     
+class LFA(nn.Module):
+    def __init__(self, obs_dim, action_dim):
+        super().__init__()
+        self.network = nn.Linear(obs_dim, action_dim)
+    
+    def forward(self, obs):
+        return self.network(obs)
+    
 class Buffer:
     """Experience replay buffer"""
     def __init__(self, capacity, num_agents, obs_dim):

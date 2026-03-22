@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from utils import evaluate_state
 
-def agent_environment_loop(agent, env, device, num_update=1000, log_dir=None, args=None):
+def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=None, log_dir=None, args=None):
     """
     agent: mappo agent
     """
@@ -39,7 +39,16 @@ def agent_environment_loop(agent, env, device, num_update=1000, log_dir=None, ar
     
     for _ in tqdm(range(num_update)):
         for step in range(collect_steps):
-            actions, logprobs, _, values = agent.act(obs)  # with no grad action dim (num_agents,)
+            if fixed_partner is not None:
+                obs1 = obs[0].unsqueeze(-1)
+                obs2 = obs[1].unsqueeze(-1)
+                actions1, logprobs1, _, values1 = agent.act(obs1)
+                actions2, logprobs2, _, values2 = fixed_partner.act(obs2)
+                actions = torch.cat((actions1, actions2), dim=0)
+                logprobs = torch.cat((logprobs1, logprobs2), dim=0)
+                values = torch.cat((values1, values2), dim=0)
+            else:
+                actions, logprobs, _, values = agent.act(obs)  # with no grad action dim (num_agents,)
             assert actions.shape == (args.num_agents*args.num_envs,)
             """
             actions dim (num_agents,)
@@ -81,7 +90,17 @@ def agent_environment_loop(agent, env, device, num_update=1000, log_dir=None, ar
 
             if values is not None:
                 values = values.squeeze(1)
-            agent.add_to_buffer(obs, actions, rewards, dones, logprobs, values)
+
+            if fixed_partner is not None:
+                obs1 = obs[0].unsqueeze(-1)
+                actions1 = actions[0].unsqueeze(-1)
+                rewards1 = rewards[0].unsqueeze(-1)
+                dones1 = dones[0].unsqueeze(-1)
+                logprobs1 = logprobs[0].unsqueeze(-1)
+                values1 = values[0].unsqueeze(-1)
+                agent.add_to_buffer(obs1, actions1, rewards1, dones1, logprobs1, values1)
+            else:
+                agent.add_to_buffer(obs, actions, rewards, dones, logprobs, values)
 
             if torch.all(dones[0:2]):
                 # handle reset 
@@ -109,7 +128,11 @@ def agent_environment_loop(agent, env, device, num_update=1000, log_dir=None, ar
             global_step += 1
 
         # Update the agent with the collected data
-        agent.update(obs)
+        if fixed_partner is not None:
+            obs1 = obs[0].unsqueeze(-1)
+            agent.update(obs1)
+        else:
+            agent.update(obs)
 
         if args.log:
             #image = evaluate_state(agent, env, device, global_step=global_step)

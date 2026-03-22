@@ -170,6 +170,9 @@ def main():
     parser.add_argument('--batch-size-sac', type=int, default=32, help='Batch size for SAC')
     parser.add_argument('--anneal-scale', type=float, default=1.0, help='Set eta_min to lr*anneal_scale')
     parser.add_argument('--grad-norm-clip', type=float, default=10.0, help='Grad clip norm value')
+    
+    # Fixed BFS
+    parser.add_argument('--fixed-bfs', action='store_true', default=False, help='Whether to use a fixed BFS agent')
 
     # Semi-Gradient SARSA specific arguments
     parser.add_argument('--step-size', type=float, default=0.01, help='Step size for Semi-Gradient SARSA')
@@ -225,6 +228,9 @@ def main():
             # Recreate vectorized environment with num_envs=1
             vec_env = make_vector_env(num_envs=1, overcooked_env=env)
             vec_env.reset()
+            
+        if args.fixed_bfs:
+            assert args.num_agents >= 2, 'Cannot use fixed BFS partner with fewer than 2 agents'
         
         obs_dim = single_agent_obs_dim[0]
         action_dim = sigle_agent_action_dim
@@ -276,11 +282,32 @@ def main():
                 args=args
             )
             num_updates = args.total_steps # update every step
+        elif args.algorithm == 'sac':
+            print('Using SAC algorithm')
+            agent = SAC(
+                env=vec_env,
+                num_agents=args.num_agents - int(args.fixed_bfs),
+                obs_dim=obs_dim,
+                action_dim=action_dim,
+                # state_dim=state_dim,
+                lr=args.lr,
+                gamma=args.gamma,
+                tau=args.tau,
+                buffer_size=args.buffer_size,
+                batch_size=args.batch_size_sac,
+                grad_norm_clip=args.grad_norm_clip,
+                anneal_scale=args.anneal_scale,
+                save_path=save_path,
+                log_dir=log_dir,
+                log=args.log,
+                args=args
+            )
+            num_updates = args.total_steps # update every step once the buffer has requried size
         elif args.algorithm == 'dqn':
             print('Using DQN algorithm')
             agent = DQN(
                 env=vec_env,
-                num_agents=args.num_agents,
+                num_agents=args.num_agents - int(args.fixed_bfs),
                 obs_dim=obs_dim,
                 action_dim=action_dim,
                 # state_dim=state_dim,
@@ -361,7 +388,18 @@ def main():
         episode_returns, freq_dict = agent_environment_sarsa_loop(agent, vec_env, num_episodes=num_episode, log_dir=log_dir)
     else:
         # others use step-based learning
-        episode_returns, freq_dict = agent_environment_loop(agent, vec_env, device, num_update=num_updates, log_dir=log_dir, args=args)
+        if args.fixed_bfs:
+            fixed_partner = BFS(
+                env=vec_env,
+                num_agents=args.num_agents,
+                save_path=save_path,
+                log_dir=log_dir,
+                log=args.log,
+                args=args
+            )
+        else:
+            fixed_partner = None
+        episode_returns, freq_dict = agent_environment_loop(agent, vec_env, device, num_update=num_updates, fixed_partner=fixed_partner, log_dir=log_dir, args=args)
         
     print(f'episode returns {episode_returns}')
 
