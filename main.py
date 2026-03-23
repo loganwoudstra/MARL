@@ -228,13 +228,15 @@ def main():
             # Recreate vectorized environment with num_envs=1
             vec_env = make_vector_env(num_envs=1, overcooked_env=env)
             vec_env.reset()
-            
-        if args.fixed_bfs:
-            assert args.num_agents >= 2, 'Cannot use fixed BFS partner with fewer than 2 agents'
         
         obs_dim = single_agent_obs_dim[0]
         action_dim = sigle_agent_action_dim
         state_dim = args.num_agents * obs_dim  # Use concatenated observations as global state
+        
+        if args.fixed_bfs:
+            assert args.num_agents >= 2, 'Cannot use fixed BFS partner with fewer than 2 agents'
+            obs_dim = sigle_agent_action_dim * 2
+            num_agents  = args.num_agents - 1
         
         # We don't need the batch_size calculation from PPO
         
@@ -286,7 +288,7 @@ def main():
             print('Using SAC algorithm')
             agent = SAC(
                 env=vec_env,
-                num_agents=args.num_agents - int(args.fixed_bfs),
+                num_agents=num_agents,
                 obs_dim=obs_dim,
                 action_dim=action_dim,
                 # state_dim=state_dim,
@@ -307,7 +309,7 @@ def main():
             print('Using DQN algorithm')
             agent = DQN(
                 env=vec_env,
-                num_agents=args.num_agents - int(args.fixed_bfs),
+                num_agents=num_agents,
                 obs_dim=obs_dim,
                 action_dim=action_dim,
                 # state_dim=state_dim,

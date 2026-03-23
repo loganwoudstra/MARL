@@ -34,19 +34,26 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
     obs, info = env.reset()  # obs is a dict of obs for each agent
     #print(f'obs shape {obs['n_agent_overcooked_features'].shape}')  # (num_env*num_agents, obs_dim)
     obs = torch.FloatTensor(obs['n_agent_overcooked_features']).to(device)  # (num_env*num_agents, obs_dim)
-    dones = torch.zeros((args.num_envs*agent.num_agents,)).to(device)
+    dones = torch.zeros((args.num_envs*args.num_agents,)).to(device)
     global_step = 0
     
     for _ in tqdm(range(num_update)):
         for step in range(collect_steps):
             if fixed_partner is not None:
-                obs1 = obs[0].unsqueeze(-1)
-                obs2 = obs[1].unsqueeze(-1)
-                actions1, logprobs1, _, values1 = agent.act(obs1)
-                actions2, logprobs2, _, values2 = fixed_partner.act(obs2)
+                obs2 = obs[1].unsqueeze(0)
+                
+                actions1, logprobs1, _, values1 = agent.act(obs)
+                actions2, _, _, _ = fixed_partner.act(obs2)
+                
                 actions = torch.cat((actions1, actions2), dim=0)
-                logprobs = torch.cat((logprobs1, logprobs2), dim=0)
-                values = torch.cat((values1, values2), dim=0)
+                if logprobs1 is not None:
+                    logprobs = torch.cat((logprobs1, torch.zeros_like(logprobs1)), dim=0)
+                else:
+                    logprobs = None
+                if values1 is not None:
+                    values = torch.cat((values1, torch.zeros_like(values1)), dim=0)
+                else:
+                    values = None
             else:
                 actions, logprobs, _, values = agent.act(obs)  # with no grad action dim (num_agents,)
             assert actions.shape == (args.num_agents*args.num_envs,)
@@ -57,9 +64,9 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
             """
             #env_action = {i: action for i, action in enumerate(actions)}
             next_obs, rewards, terminated, truncated, info = env.step(actions.cpu().numpy())
-            assert rewards.shape == (args.num_envs*agent.num_agents,)
-            assert terminated.shape == (args.num_envs*agent.num_agents,)
-            assert truncated.shape == (args.num_envs*agent.num_agents,)
+            assert rewards.shape == (args.num_envs*args.num_agents,)
+            assert terminated.shape == (args.num_envs*args.num_agents,)
+            assert truncated.shape == (args.num_envs*args.num_agents,)
             #assert next_obs['n_agent_overcooked_features'].shape == (args.num_envs*agent.num_agents, ) + env.single_obs_space.shape
 
             """
@@ -70,7 +77,9 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
             
             #rewards = torch.tensor([rewards[i] for i in range(agent.num_agents)]).to(device)  # dim (num_agents,)
             rewards = torch.FloatTensor(rewards).to(device)
-
+            shared_reward = rewards.sum()
+            rewards.fill_(shared_reward)
+            
             # if there is 1 in rewards tensor, print hello
             if torch.any(rewards[0:2] >= 1):
                 frequency_delivery_per_episode += 1
@@ -92,13 +101,19 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
                 values = values.squeeze(1)
 
             if fixed_partner is not None:
-                obs1 = obs[0].unsqueeze(-1)
+                print(rewards)
                 actions1 = actions[0].unsqueeze(-1)
                 rewards1 = rewards[0].unsqueeze(-1)
                 dones1 = dones[0].unsqueeze(-1)
-                logprobs1 = logprobs[0].unsqueeze(-1)
-                values1 = values[0].unsqueeze(-1)
-                agent.add_to_buffer(obs1, actions1, rewards1, dones1, logprobs1, values1)
+                if logprobs is not None:
+                    logprobs1 = logprobs[0].unsqueeze(-1)
+                else:
+                    logprobs1 = None
+                if values is not None:
+                    values1 = values[0].unsqueeze(-1)
+                else:
+                    values1 = None
+                agent.add_to_buffer(obs, actions1, rewards1, dones1, logprobs1, values1)
             else:
                 agent.add_to_buffer(obs, actions, rewards, dones, logprobs, values)
 
@@ -123,16 +138,12 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
                 num_episdes += 1
 
             obs = torch.FloatTensor(next_obs['n_agent_overcooked_features']).to(device)  # (num_env*num_agents, obs_dim)
-            dones = torch.tensor([terminated[i] or truncated[i] for i in range(args.num_envs*agent.num_agents)]).to(device)
+            dones = torch.tensor([terminated[i] or truncated[i] for i in range(args.num_envs*args.num_agents)]).to(device)
 
             global_step += 1
 
         # Update the agent with the collected data
-        if fixed_partner is not None:
-            obs1 = obs[0].unsqueeze(-1)
-            agent.update(obs1)
-        else:
-            agent.update(obs)
+        agent.update(obs)
 
         if args.log:
             #image = evaluate_state(agent, env, device, global_step=global_step)
