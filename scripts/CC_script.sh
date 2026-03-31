@@ -3,18 +3,18 @@
 #SBATCH --gpus-per-node=1
 #SBATCH --mem=16G
 #SBATCH --time=12:00:00
-#SBATCH --account=def-mtaylor3
+#SBATCH --account=aip-mtaylor3
 #SBATCH --output=/home/lwoudstr/scratch/slurm_out/%A.out
 
 
 export results=$SLURM_TMPDIR/results
 export data=$SLURM_TMPDIR/data
-PROJECT=/project/def-mtaylor3/lwoudstr
+PROJECT=/project/aip-mtaylor3/lwoudstr
 
 module load python/3.10
 module load cuda
 module load gcc opencv/4.9.0
-source /home/lwoudstr/projects/def-mtaylor3/lwoudstr/MARL/.venv/bin/activate 
+source /home/lwoudstr/projects/aip-mtaylor3/lwoudstr/MARL/.venv/bin/activate 
 
 echo "num envs $1"
 echo "num_steps $2"

@@ -22,7 +22,7 @@ virtualenv $name
 ```
 3. 
 ```
-pip3 install -r requirement_cc.txt
+pip3 install -r requirements_cc.txt
 ```
 
 ## File Structures

@@ -58,22 +58,22 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
                 actions0, logprobs0, _, values0 = agent.act(obs0)
                 actions1, _, _, _ = fixed_partner.act(obs1)
                 
-                actions0_reshaped = actions0.view(num_envs, num_agents-1, *actions0.shape[1:])
-                actions1_reshaped = actions1.view(num_envs, 1, *actions1.shape[1:])
+                actions0_reshaped = actions0.view(num_envs, num_agents-1, *actions0.shape[1:]).to(device)
+                actions1_reshaped = actions1.view(num_envs, 1, *actions1.shape[1:]).to(device)
                 joint_actions = torch.cat((actions0_reshaped, actions1_reshaped), dim=1)
-                actions = joint_actions.view(-1, *joint_actions.shape[2:]).int()
+                actions = joint_actions.view(-1, *joint_actions.shape[2:]).long()
                 
                 if logprobs0 is not None:
-                    logprobs_reshaped = logprobs0.view(num_envs, num_agents-1, *logprobs0.shape[1:])
-                    zeros_fixed = torch.zeros(num_envs, 1, *logprobs0.shape[1:], device=logprobs0.device)
+                    logprobs_reshaped = logprobs0.view(num_envs, num_agents-1, *logprobs0.shape[1:]).to(device)
+                    zeros_fixed = torch.zeros(num_envs, 1, *logprobs0.shape[1:], device=device)
                     logprobs_joint = torch.cat((logprobs_reshaped, zeros_fixed), dim=1)
                     logprobs = logprobs_joint.view(-1, *logprobs_joint.shape[2:])
                 else:
                     logprobs = None
                     
                 if values0 is not None:
-                    values_reshaped = values0.view(num_envs, num_agents-1, *values0.shape[1:])
-                    zeros_fixed = torch.zeros(num_envs, 1, *values0.shape[1:], device=values0.device)
+                    values_reshaped = values0.view(num_envs, num_agents-1, *values0.shape[1:]).to(device)
+                    zeros_fixed = torch.zeros(num_envs, 1, *values0.shape[1:], device=device)
                     values_joint = torch.cat((values_reshaped, zeros_fixed), dim=1)
                     values = values_joint.view(-1, *values_joint.shape[2:])
                 else:
