@@ -68,3 +68,11 @@ sbatch scripts/CC_script_sac.sh \
 
 
 tensorboard --logdir logs/run__1770182592 --port 6006 --load_fast=false
+
+python -m tests.test_load --model-path .\models\dqn_bfs_2_agents_overcooked_counter_circuit_v0_seed_5\dqn_overcooked_counter_circuit_v0_seed5.pth --layout overcooked_counter_circuit_v0 --num-agents 2 --algorithm dqn --fixed-bfs
+
+python main.py --num-agents 2 --num-envs 1 --layout overcooked_cramped_room_v0 --total-steps 10000000 --seed 2 --feature global_obs --algorithm dqn --batch-size-sac 1 --fixed-bfs --render
+
+
+
+python3 main.py --save-path models --num-agents 2 --num-envs 16 --num-steps 1 --centralised --ppo-epoch 6 --layout overcooked_cramped_room_v0 --feature global_obs --fixed-bfs

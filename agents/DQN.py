@@ -9,17 +9,6 @@ T_MAX = 1_000_000
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 LOG_INTERVAL = 1000
 
-import torch
-import torch.nn.functional as F
-import torch.nn as nn
-import numpy as np
-import os
-from .agent import Agent, Buffer, Network, LFA, layer_init
-
-T_MAX = 1_000_000
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-LOG_INTERVAL = 1000
-
 class DuelingNetwork(nn.Module):
     def __init__(self, obs_dim, action_dim, hidden_dim=256):
         super().__init__()
@@ -233,12 +222,12 @@ class DQN(Agent):
         lr=1e-4, 
         gamma=0.99, 
         tau=0.005,
-        buffer_size=5000,
-        batch_size=32,
+        buffer_size=1,
+        batch_size=1,
         grad_norm_clip=5.0,
         anneal_scale=1.0, # default no annealing
-        start_updating_steps=10_000,
-        epsilon_start=1.0,
+        start_updating_steps=1,
+        epsilon_start=0.0,
         epsilon_end=0.05,
         epsilon_decay=0.995,
         save_path=None, 
@@ -284,14 +273,23 @@ class DQN(Agent):
 
         
     def act(self, obs, state=None, training=True):
-        if self.update_count <= self.start_updating_steps:
-            actions = torch.randint(0, self.action_dim, (self.num_agents,))
-        elif training and np.random.rand() < self.epsilon:
-            actions = torch.randint(0, self.action_dim, (self.num_agents,))
-        else:
+        # inference
+        if not training:
             with torch.no_grad():
                 q_vals = self.q_net(obs.to(self.device))
+                # print(q_vals)
                 actions = torch.argmax(q_vals, dim=-1)
+        
+        # training
+        else:
+            if self.update_count <= self.start_updating_steps:
+                actions = torch.randint(0, self.action_dim, (self.num_agents,))
+            elif training and np.random.rand() < self.epsilon:
+                actions = torch.randint(0, self.action_dim, (self.num_agents,))
+            else:
+                with torch.no_grad():
+                    q_vals = self.q_net(obs.to(self.device))
+                    actions = torch.argmax(q_vals, dim=-1)
 
         return actions, None, None, None
         

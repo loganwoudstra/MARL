@@ -57,6 +57,7 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
                     values = None
             else:
                 actions, logprobs, _, values = agent.act(obs)  # with no grad action dim (num_agents,)
+            # print(args.num_agents, args.num_envs, actions.shape)
             assert actions.shape == (args.num_agents*args.num_envs,)
             """
             actions dim (num_agents,)
@@ -122,6 +123,10 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
                 # handle reset 
                 next_obs, info = env.reset()
                 episodes_reward.append(episode_reward)
+                
+                # print(episodes_reward)
+                # jsaja
+                
                 if args.log:
                     summary_writer.add_scalar('episode_rewards', episode_reward, num_episdes)
                     summary_writer.add_scalar('freq/frequency_delivery_per_episode', frequency_delivery_per_episode, num_episdes)

@@ -1,7 +1,7 @@
 from .agent import Agent
 import torch
 import numpy as np
-from cogrid import cogrid_env
+from cogrid.envs.overcooked.overcooked import Overcooked
 from collections import deque
 import time
 
@@ -86,7 +86,10 @@ class BFS(Agent):
         
         
     def build_map(self):
-        grid = self.env.vec_envs[0].par_env.grid
+        if type(self.env) == Overcooked:
+            grid = self.env.grid
+        else:
+            grid = self.env.vec_envs[0].par_env.grid
         rows, cols = grid.height, grid.width
         map = np.ones((rows, cols), dtype=bool)
 

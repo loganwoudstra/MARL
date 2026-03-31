@@ -60,7 +60,7 @@ def main():
 
 def extract_config(filename_without_ext):
     seeds = ['seed_1', 'seed_2', 'seed_3', 'seed_4']
-    configs = ['overcooked_cramped_room_v0', 'overcooked_forced_coordination_v0']
+    configs = ['overcooked_cramped_room_v0', 'overcooked_forced_coordination_v0', 'overcooked_coordination_ring_v0', 'overcooked_counter_circuit_v0']
     for configuration in configs:
         if configuration in filename_without_ext:
             return configuration
@@ -105,8 +105,8 @@ def plot_comparisons(running_avg_lists, configs=['config1', 'config2'], episode_
 Load all returns.csv files and plot them
 """
 def produce_plots_for_all_configs(folder_name="data", keyword="returns"):
-    seeds = ['seed_1', 'seed_2', 'seed_3', 'seed_4']
-    configs = ["overcooked_cramped_room_v0", "overcooked_forced_coordination_v0"]
+    seeds = ['seed_1', 'seed_2', 'seed_3', 'seed_4', 'seed_5']
+    configs = ["overcooked_cramped_room_v0", "overcooked_forced_coordination_v0", "overcooked_coordination_ring_v0", 'overcooked_counter_circuit_v0']
     data_dict = {}
     for configuration in configs:
         data_dict[configuration] = []
@@ -125,7 +125,7 @@ def produce_plots_for_all_configs(folder_name="data", keyword="returns"):
     for configuration in configs:
         if data_dict[configuration]:
             if keyword == "returns":
-                running_avg, list_of_list = plot_alg_results(data_dict[configuration], f"plots/Overcooked.png", label="Running average")
+                running_avg, list_of_list = plot_alg_results(data_dict[configuration], f"plots/Overcooked.png", label="Running average", title=configuration)
             elif keyword == "pot":
                 running_avg, list_of_list = plot_ingredients_in_pots(data_dict[configuration], f"plots/Overcooked_ingredients_in_pots.png", label="",title="Overcooked_2 agents in cramped room - Ingredients in Pots",  ylabel="frequency")
             elif keyword == "delivery":
@@ -223,13 +223,30 @@ def plot_alg_results(episode_returns_list, file, label="Algorithm", ylabel="Retu
         color='r',
         label=label
     )
+    
+    if 'cramped_room' in title:
+        # bfs_baseline = 49.7
+        bfs_baseline = 30.7
+    elif 'counter_circuit' in title:
+        # bfs_baseline = 34.3
+        bfs_baseline = 21.2
+    elif 'coordination_ring' in title:
+        # bfs_baseline = 57.3
+        bfs_baseline = 35.3
+
+    plt.plot(
+        x_coords,
+        [bfs_baseline for _ in x_coords],
+        color='b',
+        label='single-agent bfs'
+    )
     #plt.plot(x_coords, np.full(len(running_avg), 3500)   , color='b', label='threshold')
 
     # Adding labels and title
     if 'Ant' in file:
         plt.title(f"")
     else:
-        plt.title(f"Overcooked_2 agents in cramped room")
+        plt.title(title)
     plt.xlabel("episode")
     plt.ylabel(ylabel)
 
