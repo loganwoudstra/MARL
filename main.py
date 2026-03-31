@@ -217,7 +217,8 @@ def main():
     
     save_path = None
     if args.save_path:
-        save_path = os.path.join(PROJECT_ROOT, args.save_path, f"{args.algorithm}_{args.num_agents}_agents_{args.layout}_seed_{args.seed}")
+        bfs_suffix = "_bfs" if args.fixed_bfs else ""
+        save_path = os.path.join(PROJECT_ROOT, args.save_path, f"{args.algorithm}{bfs_suffix}_{args.num_agents}_agents_{args.layout}_seed_{args.seed}_{args.feature}")
     
     # Select algorithm
     if args.algorithm in ['qmix', 'sarsa', 'sac', 'bfs', 'dqn']:
@@ -235,8 +236,9 @@ def main():
         
         if args.fixed_bfs:
             assert args.num_agents >= 2, 'Cannot use fixed BFS partner with fewer than 2 agents'
-            obs_dim = sigle_agent_action_dim * 2
             num_agents  = args.num_agents - 1
+        else:
+            num_agents  = args.num_agents
         
         # We don't need the batch_size calculation from PPO
         

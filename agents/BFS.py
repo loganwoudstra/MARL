@@ -316,7 +316,7 @@ class BFS(Agent):
             self.goal_action = 'wait'
         
     def act(self, obs, state=None, training=True):
-        obs = obs[0] # TODO: fix for multiple agents
+        obs = obs[-1] # TODO: fix for multiple agents
         self.update_position(obs)
         self.update_goal(obs)
         

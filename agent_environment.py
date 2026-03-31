@@ -40,18 +40,19 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
     for _ in tqdm(range(num_update)):
         for step in range(collect_steps):
             if fixed_partner is not None:
-                obs2 = obs[1].unsqueeze(0)
+                obs0 = obs[0].unsqueeze(0)
+                obs1 = obs[1].unsqueeze(0)
                 
-                actions1, logprobs1, _, values1 = agent.act(obs)
-                actions2, _, _, _ = fixed_partner.act(obs2)
+                actions0, logprobs0, _, values0 = agent.act(obs0)
+                actions1, _, _, _ = fixed_partner.act(obs1)
                 
-                actions = torch.cat((actions1, actions2), dim=0)
-                if logprobs1 is not None:
-                    logprobs = torch.cat((logprobs1, torch.zeros_like(logprobs1)), dim=0)
+                actions = torch.cat((actions0.to(device), actions1.to(device)), dim=0)
+                if logprobs0 is not None:
+                    logprobs = torch.cat((logprobs0.to(device), torch.zeros_like(logprobs0, device=device)), dim=0)
                 else:
                     logprobs = None
-                if values1 is not None:
-                    values = torch.cat((values1, torch.zeros_like(values1)), dim=0)
+                if values0 is not None:
+                    values = torch.cat((values0.to(device), torch.zeros_like(values0, device=device)), dim=0)
                 else:
                     values = None
             else:
@@ -77,7 +78,7 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
             
             #rewards = torch.tensor([rewards[i] for i in range(agent.num_agents)]).to(device)  # dim (num_agents,)
             rewards = torch.FloatTensor(rewards).to(device)
-            shared_reward = rewards.sum()
+            shared_reward = rewards.mean()
             rewards.fill_(shared_reward)
             
             # if there is 1 in rewards tensor, print hello
@@ -101,19 +102,19 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
                 values = values.squeeze(1)
 
             if fixed_partner is not None:
-                print(rewards)
-                actions1 = actions[0].unsqueeze(-1)
-                rewards1 = rewards[0].unsqueeze(-1)
-                dones1 = dones[0].unsqueeze(-1)
+                obs0 = obs[0].unsqueeze(0)
+                actions0 = actions[0].unsqueeze(-1)
+                rewards0 = rewards[0].unsqueeze(-1)
+                dones0 = dones[0].unsqueeze(-1)
                 if logprobs is not None:
-                    logprobs1 = logprobs[0].unsqueeze(-1)
+                    logprobs0 = logprobs[0].unsqueeze(-1)
                 else:
-                    logprobs1 = None
+                    logprobs0 = None
                 if values is not None:
-                    values1 = values[0].unsqueeze(-1)
+                    values0 = values[0].unsqueeze(-1)
                 else:
-                    values1 = None
-                agent.add_to_buffer(obs, actions1, rewards1, dones1, logprobs1, values1)
+                    values0 = None
+                agent.add_to_buffer(obs0, actions1, rewards0, dones0, logprobs0, values0)
             else:
                 agent.add_to_buffer(obs, actions, rewards, dones, logprobs, values)
 
@@ -143,7 +144,11 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
             global_step += 1
 
         # Update the agent with the collected data
-        agent.update(obs)
+        if fixed_partner:
+            obs0 = obs[0].unsqueeze(0)
+            agent.update(obs0)
+        else:
+            agent.update(obs)
 
         if args.log:
             #image = evaluate_state(agent, env, device, global_step=global_step)

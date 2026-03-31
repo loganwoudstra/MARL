@@ -32,11 +32,21 @@ echo "lr ${12}"
 echo "data_path ${13}"
 echo "layout ${14}"
 echo "feature ${15}"
+echo "fixed_bfs: ${16}"
 
-python3 main.py --save-path models --num-agents 1 --num-envs $1 --num-steps $2 --num-minibatches $3 \
+# Check if $14 is 1 (enable fixed-bfs)
+if [ "${16}" -eq 1 ]; then
+    FIXED_BFS_FLAG="--fixed-bfs"
+    NUM_AGENTS=2
+else
+    FIXED_BFS_FLAG=""
+    NUM_AGENTS=1
+fi
+
+python3 main.py --save-path models --num-agents $NUM_AGENTS --num-envs $1 --num-steps $2 --num-minibatches $3 \
 --total-steps $4 --seed $5 --log --centralised --ppo-epoch $6 --clip-param $7 \
 --value-loss-coef $8 --entropy-coef $9 --gamma ${10} --lam ${11} --max-grad-norm 0.5 --lr ${12} --data-path ${13} --layout ${14} \
---feature ${15}
+--feature ${15} $FIXED_BFS_FLAG
 
 mkdir -p $PROJECT/MARL/logs
 cp -r $SLURM_TMPDIR/logs $PROJECT/MARL/logs/$SLURM_JOB_ID
