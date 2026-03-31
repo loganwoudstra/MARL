@@ -36,28 +36,50 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
     obs = torch.FloatTensor(obs['n_agent_overcooked_features']).to(device)  # (num_env*num_agents, obs_dim)
     dones = torch.zeros((args.num_envs*args.num_agents,)).to(device)
     global_step = 0
+    num_envs = args.num_envs
+    num_agents = args.num_agents
+    
+    
+    agent_indices = []
+    fixed_indices = []
+
+    # Compute indices in flat obs
+    for env_idx in range(num_envs):
+        start = env_idx * num_agents
+        agent_indices.extend(range(start, start + num_agents - 1))
+        fixed_indices.append(start + num_agents - 1) 
     
     for _ in tqdm(range(num_update)):
         for step in range(collect_steps):
             if fixed_partner is not None:
-                obs0 = obs[0].unsqueeze(0)
-                obs1 = obs[1].unsqueeze(0)
+                obs0 = obs[agent_indices]
+                obs1 = obs[fixed_indices]
                 
                 actions0, logprobs0, _, values0 = agent.act(obs0)
                 actions1, _, _, _ = fixed_partner.act(obs1)
                 
-                actions = torch.cat((actions0.to(device), actions1.to(device)), dim=0)
+                actions0_reshaped = actions0.view(num_envs, num_agents-1, *actions0.shape[1:])
+                actions1_reshaped = actions1.view(num_envs, 1, *actions1.shape[1:])
+                joint_actions = torch.cat((actions0_reshaped, actions1_reshaped), dim=1)
+                actions = joint_actions.view(-1, *joint_actions.shape[2:]).int()
+                
                 if logprobs0 is not None:
-                    logprobs = torch.cat((logprobs0.to(device), torch.zeros_like(logprobs0, device=device)), dim=0)
+                    logprobs_reshaped = logprobs0.view(num_envs, num_agents-1, *logprobs0.shape[1:])
+                    zeros_fixed = torch.zeros(num_envs, 1, *logprobs0.shape[1:], device=logprobs0.device)
+                    logprobs_joint = torch.cat((logprobs_reshaped, zeros_fixed), dim=1)
+                    logprobs = logprobs_joint.view(-1, *logprobs_joint.shape[2:])
                 else:
                     logprobs = None
+                    
                 if values0 is not None:
-                    values = torch.cat((values0.to(device), torch.zeros_like(values0, device=device)), dim=0)
+                    values_reshaped = values0.view(num_envs, num_agents-1, *values0.shape[1:])
+                    zeros_fixed = torch.zeros(num_envs, 1, *values0.shape[1:], device=values0.device)
+                    values_joint = torch.cat((values_reshaped, zeros_fixed), dim=1)
+                    values = values_joint.view(-1, *values_joint.shape[2:])
                 else:
                     values = None
             else:
                 actions, logprobs, _, values = agent.act(obs)  # with no grad action dim (num_agents,)
-            # print(args.num_agents, args.num_envs, actions.shape)
             assert actions.shape == (args.num_agents*args.num_envs,)
             """
             actions dim (num_agents,)
@@ -103,19 +125,19 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
                 values = values.squeeze(1)
 
             if fixed_partner is not None:
-                obs0 = obs[0].unsqueeze(0)
-                actions0 = actions[0].unsqueeze(-1)
-                rewards0 = rewards[0].unsqueeze(-1)
-                dones0 = dones[0].unsqueeze(-1)
+                obs0 = obs[agent_indices]
+                actions0 = actions[agent_indices]
+                rewards0 = rewards[agent_indices]
+                dones0 = dones[agent_indices]
                 if logprobs is not None:
-                    logprobs0 = logprobs[0].unsqueeze(-1)
+                    logprobs0 = logprobs[agent_indices]
                 else:
                     logprobs0 = None
                 if values is not None:
-                    values0 = values[0].unsqueeze(-1)
+                    values0 = values[agent_indices]
                 else:
                     values0 = None
-                agent.add_to_buffer(obs0, actions1, rewards0, dones0, logprobs0, values0)
+                agent.add_to_buffer(obs0, actions0, rewards0, dones0, logprobs0, values0)
             else:
                 agent.add_to_buffer(obs, actions, rewards, dones, logprobs, values)
 
@@ -150,7 +172,7 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
 
         # Update the agent with the collected data
         if fixed_partner:
-            obs0 = obs[0].unsqueeze(0)
+            obs0 = obs[agent_indices]
             agent.update(obs0)
         else:
             agent.update(obs)

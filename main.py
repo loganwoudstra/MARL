@@ -220,6 +220,13 @@ def main():
         bfs_suffix = "_bfs" if args.fixed_bfs else ""
         save_path = os.path.join(PROJECT_ROOT, args.save_path, f"{args.algorithm}{bfs_suffix}_{args.num_agents}_agents_{args.layout}_seed_{args.seed}_{args.feature}")
     
+    if args.fixed_bfs:
+        assert args.num_agents >= 2, 'Cannot use fixed BFS partner with fewer than 2 agents'
+        num_agents  = args.num_agents - 1
+        batch_size = args.num_envs * num_agents * args.num_steps
+    else:
+        num_agents  = args.num_agents
+
     # Select algorithm
     if args.algorithm in ['qmix', 'sarsa', 'sac', 'bfs', 'dqn']:
         # We assume num_envs = 1 for simplicity
@@ -234,19 +241,13 @@ def main():
         action_dim = sigle_agent_action_dim
         state_dim = args.num_agents * obs_dim  # Use concatenated observations as global state
         
-        if args.fixed_bfs:
-            assert args.num_agents >= 2, 'Cannot use fixed BFS partner with fewer than 2 agents'
-            num_agents  = args.num_agents - 1
-        else:
-            num_agents  = args.num_agents
-        
         # We don't need the batch_size calculation from PPO
         
         if args.algorithm == 'qmix':
             print('Using QMIX algorithm')
             agent = QMIX(
                 env=vec_env,
-                num_agents=args.num_agents,
+                num_agents=num_agents,
                 obs_dim=obs_dim,
                 action_dim=action_dim,
                 state_dim=state_dim,
@@ -269,7 +270,7 @@ def main():
             print('Using SARSA algorithm')
             agent = SARSA(
                 env=vec_env,
-                num_agents=args.num_agents,
+                num_agents=num_agents,
                 obs_dim=obs_dim,
                 action_dim=action_dim,
                 # state_dim=state_dim,
@@ -341,27 +342,25 @@ def main():
         
     elif args.algorithm == 'mappo' or (args.algorithm == 'mappo' and not args.centralised):
         print('Using decentralised MAPPO')
-        net = Agent(obs_space, action_space, num_agents=args.num_agents, num_envs=args.num_envs).to(device)
+        net = Agent(obs_space, action_space, num_agents=num_agents, num_envs=args.num_envs).to(device)
         optimizer = torch.optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.95))
-        buffer = Buffer(env.observation_spaces[0]['n_agent_overcooked_features'].shape[0], env.config["num_agents"], args.num_envs, max_size=args.num_steps)
-        
+        buffer = Buffer(env.observation_spaces[0]['n_agent_overcooked_features'].shape[0], num_agents, args.num_envs, max_size=args.num_steps)
         agent = MAPPO(vec_env, optimizer, net, buffer, single_agent_obs_dim, sigle_agent_action_dim, batch_size=batch_size,
                       num_mini_batches=args.num_minibatches, ppo_epoch=args.ppo_epoch, clip_param=args.clip_param,
                     value_loss_coef=args.value_loss_coef, entropy_coef=args.entropy_coef, max_grad_norm=args.max_grad_norm,
                     gamma=args.gamma, lam=args.lam,
-                    save_path=save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
+                    save_path=save_path, log_dir=log_dir, num_agents=num_agents, log=args.log, args=args)
         num_updates = args.total_steps // batch_size
     elif args.algorithm == 'cmappo' or (args.algorithm == 'mappo' and args.centralised):
         print('Using centralised MAPPO')
-        net = Agent(obs_space, action_space, num_agents=args.num_agents, num_envs=args.num_envs).to(device)
+        net = Agent(obs_space, action_space, num_agents=num_agents, num_envs=args.num_envs).to(device)
         optimizer = torch.optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.95))
-        buffer = Buffer(env.observation_spaces[0]['n_agent_overcooked_features'].shape[0], env.config["num_agents"], args.num_envs, max_size=args.num_steps)
-        
+        buffer = Buffer(env.observation_spaces[0]['n_agent_overcooked_features'].shape[0], num_agents, args.num_envs, max_size=args.num_steps)
         agent = CMAPPO(vec_env, optimizer, net, buffer, single_agent_obs_dim, sigle_agent_action_dim, batch_size=batch_size,
                        num_mini_batches=args.num_minibatches, ppo_epoch=args.ppo_epoch, clip_param=args.clip_param,
                     value_loss_coef=args.value_loss_coef, entropy_coef=args.entropy_coef, max_grad_norm=args.max_grad_norm,
                     gamma=args.gamma, lam=args.lam,
-                    save_path=save_path, log_dir=log_dir, num_agents=args.num_agents, log=args.log, args=args)
+                    save_path=save_path, log_dir=log_dir, num_agents=num_agents, log=args.log, args=args)
         num_updates = args.total_steps // batch_size
     elif args.algorithm == 'sarsa':
         print('Using Semi-Gradient SARSA algorithm')
@@ -394,8 +393,9 @@ def main():
         # others use step-based learning
         if args.fixed_bfs:
             fixed_partner = BFS(
-                env=vec_env,
+                env=env,
                 num_agents=args.num_agents,
+                num_envs=args.num_envs,
                 save_path=save_path,
                 log_dir=log_dir,
                 log=args.log,

@@ -62,16 +62,18 @@ class BFS(Agent):
         self, 
         env, 
         num_agents,
+        num_envs=1,
         save_path=None, 
         log_dir=None, 
         log=False, 
         args=None
     ):
         super().__init__(env, num_agents, save_path, log_dir, log, args)
-        self.goal = None
-        self.pos = (0, 0)
+        self.num_envs = num_envs
+        self.goals = [None for _ in range(num_envs)]
+        self.positions = [(0, 0) for _ in range(num_envs)]
         self.map = self.build_map()
-        self.goal_action = 'wait'
+        self.goal_actions = ['wait' for _ in range(num_envs)]
         self.action_map = {
             'up': 0,
             'down': 1,
@@ -100,8 +102,9 @@ class BFS(Agent):
 
         return map
         
-    def update_position(self, obs):
-        self.pos = (int(obs[95 + (self.num_agents - 1) * 2]), int(obs[96 + (self.num_agents - 1) * 2]))
+    def update_positions(self, all_obs):
+        for i in range(self.num_envs):
+            self.positions[i] = (int(all_obs[i, 95 + (self.num_agents - 1) * 2]), int(all_obs[i, 96 + (self.num_agents - 1) * 2]))
         
     def held_object(self, obs):
         if obs[4]:
@@ -145,39 +148,44 @@ class BFS(Agent):
             return (int(obs[91]), int(obs[92]))
         return None
     
-    def nearest_delivery(self, obs):
-        return (self.pos[0] - int(obs[59]), self.pos[1] - int(obs[60]))
+    def nearest_delivery(self, obs, agent_idx):
+        pos = self.positions[agent_idx]
+        return (pos[0] - int(obs[59]), pos[1] - int(obs[60]))
         
-    def nearest_counter(self, obs):
-        onion_pos = [(self.pos[0] - int(obs[27 + 2 * i]), self.pos[1] - int(obs[28 + 2 * i])) for i in range(4)]
-        plate_pos = [(self.pos[0] - int(obs[35 + 2 * i]), self.pos[1] - int(obs[36 + 2 * i])) for i in range(4)]
+    def nearest_counter(self, obs, agent_idx):
+        pos = self.positions[agent_idx]
+        onion_pos = [(pos[0] - int(obs[27 + 2 * i]), pos[1] - int(obs[28 + 2 * i])) for i in range(4)]
+        plate_pos = [(pos[0] - int(obs[35 + 2 * i]), pos[1] - int(obs[36 + 2 * i])) for i in range(4)]
         full_counters = onion_pos + plate_pos
         for i in range(4):
-            counter_pos = (self.pos[0] - int(obs[63 + 2 * i]), self.pos[1] - int(obs[64 + 2 * i]))
+            counter_pos = (pos[0] - int(obs[63 + 2 * i]), pos[1] - int(obs[64 + 2 * i]))
             if counter_pos not in full_counters:
                 return counter_pos
     
-    def nearest_plate(self, obs):
+    def nearest_plate(self, obs, agent_idx):
+        pos = self.positions[agent_idx]
         plate_stack_dist = sum((abs(int(obs[43])),  abs(int(obs[44]))))
         plate_dist = sum((abs(int(obs[35])),  abs(int(obs[36]))))
         if plate_stack_dist < plate_dist or plate_dist == 0: # bc no plates means (dy, dx) is (0, 0)
-            return (self.pos[0] - int(obs[43]), self.pos[1] - int(obs[44]))
+            return (pos[0] - int(obs[43]), pos[1] - int(obs[44]))
         else:
-            return (self.pos[0] - int(obs[35]), self.pos[1] - int(obs[36]))
+            return (pos[0] - int(obs[35]), pos[1] - int(obs[36]))
     
-    def nearest_onion(self, obs):
+    def nearest_onion(self, obs, agent_idx):
+        pos = self.positions[agent_idx]
         onion_stack_dist = sum((abs(int(obs[47])),  abs(int(obs[48]))))
         onion_dist = sum((abs(int(obs[27])),  abs(int(obs[28]))))
         if onion_stack_dist < onion_dist or onion_dist == 0: # bc no onions means (dy, dx) is (0, 0)
-            return (self.pos[0] - int(obs[47]), self.pos[1] - int(obs[48]))
+            return (pos[0] - int(obs[47]), pos[1] - int(obs[48]))
         else:
-            return (self.pos[0] - int(obs[27]), self.pos[1] - int(obs[28]))
+            return (pos[0] - int(obs[27]), pos[1] - int(obs[28]))
     
-    def goal_tiles(self):
-        if self.goal is None:
+    def goal_tiles(self, agent_idx):
+        goal = self.goals[agent_idx]
+        if goal is None:
             return None
         
-        r, c = self.goal
+        r, c = goal
         tiles = [
             (r-1, c),  # up
             (r+1, c),  # down
@@ -194,12 +202,13 @@ class BFS(Agent):
 
         return valid
     
-    def bfs(self):
+    def bfs(self, agent_idx):
+        pos = self.positions[agent_idx]
         rows, cols = self.map.shape
-        queue = deque([(self.pos, [])])
-        visited = {self.pos}
+        queue = deque([(pos, [])])
+        visited = {pos}
         
-        goals = self.goal_tiles()
+        goals = self.goal_tiles(agent_idx)
 
         directions = [
             (-1,0),  # up
@@ -231,19 +240,22 @@ class BFS(Agent):
 
         return None 
     
-    def facing_goal(self, obs):
+    def facing_goal(self, obs, agent_idx):
+        pos = self.positions[agent_idx]
         if obs[0]: # right
-            ahead_square = (self.pos[0], self.pos[1] + 1)
+            ahead_square = (pos[0], pos[1] + 1)
         elif obs[1]: # down
-            ahead_square = (self.pos[0]  + 1, self.pos[1])
+            ahead_square = (pos[0]  + 1, pos[1])
         elif obs[2]: # left
-            ahead_square = (self.pos[0], self.pos[1] - 1)
+            ahead_square = (pos[0], pos[1] - 1)
         else: # up
-            ahead_square = (self.pos[0] - 1, self.pos[1])
-        return self.goal == ahead_square
+            ahead_square = (pos[0] - 1, pos[1])
+        return self.goals[agent_idx] == ahead_square
     
-    def turn_to_goal(self, obs):
-        direction_tuple = (self.goal[0] - self.pos[0], self.goal[1] - self.pos[1])
+    def turn_to_goal(self, agent_idx):
+        goal = self.goals[agent_idx]
+        pos = self.positions[agent_idx]
+        direction_tuple = (goal[0] - pos[0], goal[1] - pos[1])
         if direction_tuple == (-1, 0):
             return self.action_map['up']
         elif direction_tuple == (0, 1):
@@ -253,96 +265,98 @@ class BFS(Agent):
         else:
             return self.action_map['left']
             
-    def update_goal(self, obs):
-        held_object = self.held_object(obs)
-        nearest_cooked_soup = self.nearest_cooked_soup(obs)
-        nearest_cooking_soup = self.nearest_cooking_soup(obs)
-        nearest_full_soup = self.nearest_full_soup(obs)
-        nearest_not_full_soup = self.nearest_not_full_soup(obs)
-        
-        # TODO: dont even use obs, just use env
-        
-        # have soup
-        if held_object == 'soup':
-            # print('try to deliver')
-            self.goal = self.nearest_delivery(obs)
-            self.goal_action = 'drop'
+    def update_goal(self, all_obs):
+        for i, obs in enumerate(all_obs):
+            held_object = self.held_object(obs)
+            nearest_cooked_soup = self.nearest_cooked_soup(obs)
+            nearest_cooking_soup = self.nearest_cooking_soup(obs)
+            nearest_full_soup = self.nearest_full_soup(obs)
+            nearest_not_full_soup = self.nearest_not_full_soup(obs)
             
-        # soup cooked
-        elif nearest_cooked_soup is not None:
-            # print('soup cooked')
-            if held_object == 'plate':
-                self.goal = nearest_cooked_soup
-                self.goal_action = 'drop'
-            elif held_object == 'onion':
-                self.goal = self.nearest_counter(obs)
-                self.goal_action = 'drop'
-            else: # empty hand
-                self.goal = self.nearest_plate(obs)
-                self.goal_action = 'pickup'
+            # TODO: dont even use obs, just use env
+            
+            # have soup
+            if held_object == 'soup':
+                # print('try to deliver')
+                goal = self.nearest_delivery(obs, i)
+                goal_action = 'drop'
                 
-        # pot full
-        elif nearest_full_soup is not None:
-            # print('full pot')
-            self.goal = nearest_full_soup
-            self.goal_action = 'toggle'
+            # soup cooked
+            elif nearest_cooked_soup is not None:
+                # print('soup cooked')
+                if held_object == 'plate':
+                    goal = nearest_cooked_soup
+                    goal_action = 'drop'
+                elif held_object == 'onion':
+                    goal = self.nearest_counter(obs, i)
+                    goal_action = 'drop'
+                else: # empty hand
+                    goal = self.nearest_plate(obs, i)
+                    goal_action = 'pickup'
+                    
+            # pot full
+            elif nearest_full_soup is not None:
+                # print('full pot')
+                goal = nearest_full_soup
+                goal_action = 'toggle'
+                    
+            # not full, cooking, or ready
+            elif nearest_not_full_soup is not None:
+                # print('no full/cooking')
+                if held_object == 'plate':
+                    goal = self.nearest_counter(obs, i)
+                    goal_action = 'drop'
+                elif held_object == 'onion':
+                    goal = nearest_not_full_soup
+                    goal_action = 'drop'
+                else: # empty
+                    goal = self.nearest_onion(obs, i)
+                    goal_action = 'pickup'
                 
-        # not full, cooking, or ready
-        elif nearest_not_full_soup is not None:
-            # print('no full/cooking')
-            if held_object == 'plate':
-                self.goal = self.nearest_counter(obs)
-                self.goal_action = 'drop'
-            elif held_object == 'onion':
-                self.goal = nearest_not_full_soup
-                self.goal_action = 'drop'
-            else: # empty
-                self.goal = self.nearest_onion(obs)
-                self.goal_action = 'pickup'
-              
-        # soup cooking  
-        elif nearest_cooking_soup is not None:
-            # print('soup cooking')
-            if held_object == 'plate':
-                self.goal = nearest_cooking_soup
-                self.goal_action = 'wait'
-            elif held_object == 'onion':
-                self.goal = self.nearest_counter(obs)
-                self.goal_action = 'drop'
-            else: # empty hand
-                self.goal = self.nearest_plate(obs)
-                self.goal_action = 'pickup'
-                
-        # no reachable pots
-        else:
-            self.goal = None
-            self.goal_action = 'wait'
-        
-    def act(self, obs, state=None, training=True):
-        obs = obs[-1] # TODO: fix for multiple agents
-        self.update_position(obs)
-        self.update_goal(obs)
-        
-        if self.goal is None:
-            action = self.action_map['wait'] 
-        elif self.pos in self.goal_tiles():
-            if self.facing_goal(obs):
-                action = self.action_map[self.goal_action]
+            # soup cooking  
+            elif nearest_cooking_soup is not None:
+                # print('soup cooking')
+                if held_object == 'plate':
+                    goal = nearest_cooking_soup
+                    goal_action = 'wait'
+                elif held_object == 'onion':
+                    goal = self.nearest_counter(obs, i)
+                    goal_action = 'drop'
+                else: # empty hand
+                    goal = self.nearest_plate(obs, i)
+                    goal_action = 'pickup'
+                    
+            # no reachable pots
             else:
-                action = self.turn_to_goal(obs)
-        else:
-            move = self.bfs()
-            if move is None:
+                goal = None
+                goal_action = 'wait'
+                
+            self.goals[i] = goal
+            self.goal_actions[i] = goal_action
+        
+    def act(self, all_obs, state=None, training=True):
+        self.update_positions(all_obs)
+        self.update_goal(all_obs)
+        
+        actions = torch.zeros(self.num_envs)
+        for i, obs in enumerate(all_obs):
+            if self.goals[i] is None:
                 action = self.action_map['wait'] 
+            elif self.positions[i] in self.goal_tiles(i):
+                if self.facing_goal(obs, i):
+                    action = self.action_map[self.goal_actions[i]]
+                else:
+                    action = self.turn_to_goal(i)
             else:
-                action = move
-        # print('in hand', self.held_object(obs))
-        # print('pos:', self.pos, 'goal:', self.goal)
-        # print('goal_action:', self.goal_action, 'sent action:', action)
-        # print()
+                move = self.bfs(i)
+                if move is None:
+                    action = self.action_map['wait'] 
+                else:
+                    action = move
+            actions[i] = action
         # time.sleep(0.5)
         
-        return torch.tensor([action]), None, None, None
+        return actions, None, None, None
         
     def update(self, next_obs):
         pass
