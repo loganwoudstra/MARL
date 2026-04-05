@@ -101,8 +101,8 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
             
             #rewards = torch.tensor([rewards[i] for i in range(agent.num_agents)]).to(device)  # dim (num_agents,)
             rewards = torch.FloatTensor(rewards).to(device)
-            shared_reward = rewards.mean()
-            rewards.fill_(shared_reward)
+            # shared_reward = rewards.mean()
+            # rewards.fill_(shared_reward)
             
             # if there is 1 in rewards tensor, print hello
             if torch.any(rewards[0:2] >= 1):
