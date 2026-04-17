@@ -101,6 +101,8 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
             
             #rewards = torch.tensor([rewards[i] for i in range(agent.num_agents)]).to(device)  # dim (num_agents,)
             rewards = torch.FloatTensor(rewards).to(device)
+            rewards_reshaped = rewards.view(num_envs, num_agents)
+            rewards = rewards_reshaped.mean(dim=1, keepdim=True).expand(-1, num_agents).reshape(-1)
             # shared_reward = rewards.mean()
             # rewards.fill_(shared_reward)
             
