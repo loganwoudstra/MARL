@@ -75,4 +75,8 @@ python main.py --num-agents 2 --num-envs 1 --layout overcooked_cramped_room_v0 -
 
 
 
-python3 main.py --save-path models --num-agents 2 --num-envs 16 --num-steps 1 --centralised --ppo-epoch 6 --layout overcooked_cramped_room_v0 --feature global_obs --fixed-bfs
+python main.py --save-path models --num-agents 2 --num-envs 1 --num-steps 1 --num-minibatches 1 --centralised --ppo-epoch 6 --layout overcooked_cramped_room_v0 --feature global_obs --fixed-bfs --render
+
+
+
+python3 plot.py --folders .\data\_final\ppo_bfs_coordination_ring_global_obs\combined\ .\data\_final\dqn_bfs_coordination_ring_global_obs_long\combined\ .\data\_final\sac_bfs_coordination_ring_global_obs\combined\ .\data\_final\ppo_bfs_shared_coordination_ring_global_obs\combined\ .\data\_final\dqn_bfs_shared_coordination_ring_global_obs\combined\  --keyword returns

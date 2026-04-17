@@ -338,7 +338,7 @@ class BFS(Agent):
         self.update_positions(all_obs)
         self.update_goal(all_obs)
         
-        actions = torch.zeros(self.num_envs)
+        actions = torch.zeros(self.num_envs, dtype=torch.long)
         for i, obs in enumerate(all_obs):
             if self.goals[i] is None:
                 action = self.action_map['wait'] 

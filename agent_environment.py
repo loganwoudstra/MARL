@@ -3,6 +3,7 @@ import os
 import torch
 import numpy as np
 import imageio
+import time
 
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -51,6 +52,7 @@ def agent_environment_loop(agent, env, device, num_update=1000, fixed_partner=No
     
     for _ in tqdm(range(num_update)):
         for step in range(collect_steps):
+            # time.sleep(0.2)
             if fixed_partner is not None:
                 obs0 = obs[agent_indices]
                 obs1 = obs[fixed_indices]
