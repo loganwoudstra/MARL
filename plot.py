@@ -29,7 +29,6 @@ def main():
             using_global = 'global' in label
             using_shared = 'shared' in label
             
-            
             bfs_string = "+BFS" if using_bfs else ""
             obs_string = 'global obs' if using_global else 'local obs'
             obs_string = obs_string if using_bfs else ""
@@ -122,9 +121,7 @@ def plot_config(series_list, config, keyword):
     for idx, s in enumerate(series_list):
         color = colors[idx]
         label = s["label"]
-        for x in s["episode_returns"]:
-            print(label, x.shape)
-        print(type(s["episode_returns"][0]))
+            
         
         min_len = min(len(r) for r in s["episode_returns"])
         data_array = np.array([r[:min_len] for r in s["episode_returns"]])
@@ -133,9 +130,10 @@ def plot_config(series_list, config, keyword):
         lo = smooth(lo)
         hi = smooth(hi)
         x_coords = [i * s["num_envs"] for i in range(1, len(running_avg) + 1)]
-        max_steps = 3_000
-        cutoff = next((i for i, x in enumerate(x_coords) if x > max_steps), len(x_coords))
-        x_coords, running_avg, lo, hi = x_coords[:cutoff], running_avg[:cutoff], lo[:cutoff], hi[:cutoff]
+        
+        # max_steps = 3_000
+        # cutoff = next((i for i, x in enumerate(x_coords) if x > max_steps), len(x_coords))
+        # x_coords, running_avg, lo, hi = x_coords[:cutoff], running_avg[:cutoff], lo[:cutoff], hi[:cutoff]
 
         ax.fill_between(x_coords, lo, hi, color=color, alpha=0.2)
         ax.plot(x_coords, running_avg, color=color, linewidth=1, label=label)
