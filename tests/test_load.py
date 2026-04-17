@@ -12,6 +12,7 @@ from cogrid.core.actions import Actions
 from agents import MAPPO, SAC, DQN, BFS
 import random
 from main import make_vector_env
+import inspect
 
 #env
 
@@ -76,9 +77,15 @@ def main():
     action_space = env.action_spaces[0]  # Discrete(7)
     if args.algorithm == 'sac':
         agent = SAC(env, num_agents - int(args.fixed_bfs), obs_space.shape[0], action_space.n, hidden_dim=256)
+        agent.load_model(args.model_path)
     elif args.algorithm == 'dqn':
         agent = DQN(env, num_agents - int(args.fixed_bfs), obs_space.shape[0], action_space.n, hidden_dim=256)
-    agent.load_model(args.model_path)
+        agent.load_model(args.model_path)
+    elif args.algorithm == 'ppo':
+        nn = Agent(obs_space, action_space, num_agents=num_agents - int(args.fixed_bfs), num_envs=16).to(device)  # neural network
+        nn.load_state_dict(torch.load(args.model_path, map_location=device)) 
+        agent = MAPPO(env, None, nn, None, None, None, num_agents=num_agents - int(args.fixed_bfs))
+        
     
     if args.fixed_bfs:
         fixed_partner = BFS(env=env, num_agents=num_agents)
@@ -140,18 +147,19 @@ def run_inference(agent, env, device, fixed_partner=None):
     
     episode_reward = 0
     while True:
-        time.sleep(0.05)
+        # time.sleep(0.1)
         num_steps += 1
-        #agent_0_obs = obs[0]
-        #agent_1_obs = obs[1]
         if fixed_partner is not None:
+            obs0 = obs[0].unsqueeze(0)
             obs1 = obs[1].unsqueeze(0)
-            obs2 = obs[1].unsqueeze(0)
             
-            actions1, _, _, _ = agent.act(obs1, training=False)
-            actions2, _, _, _ = fixed_partner.act(obs2, training=False)
+            if 'training' in inspect.signature(agent.act).parameters: # ppo doesnt have training param
+                actions0, _, _, _ = agent.act(obs0, training=False)
+            else:
+                actions0, _, _, _ = agent.act(obs0)
+            actions1, _, _, _ = fixed_partner.act(obs1)
             
-            actions = torch.cat((actions1, actions2), dim=0)
+            actions = torch.cat((actions0, actions1), dim=0).long()
         else:
             actions, _, _, _ = agent.act(obs)  # action is a vector with dimention (num_agents,)
         env_action = {i: action for i, action in enumerate(actions)}

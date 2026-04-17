@@ -1,264 +1,192 @@
-
 import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
+from scipy import stats
+
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--folder", type=str, default="data", help="path to the folder containing csv")
-    parser.add_argument("--keyword", type=str, default="returns", help="keyword to filter csv files")
-    parser.add_argument("--compare", action="store_true", help="compare different configurations")
+    parser.add_argument("--folders", type=str, nargs="+", default=["data"],
+                        help="one or more paths to folders containing CSVs")
+    parser.add_argument("--keyword", type=str, default="returns",
+                        help="keyword to filter csv files")
     args = parser.parse_args()
-    folder_name = args.folder
     keyword = args.keyword
-    compare = args.compare
-    running_avg_range = 100
+    folders = args.folders
 
-    if compare:
-        print("Plotting all layouts")
-        running_avg_lists = []
-        episode_returns_lists = []
-        #folders = ['datas/data0609', 
-        #           'datas/data0714_local_obs', 
-        #           'datas/data0716-cramped_minimal_other_agent_aware',
-        #           'datas/data0717_cramped_minimal_spatial']  # comparing partial obs and full obs cramped
-        folders = [
-            'datas/data0714-force-coordination',
-            'datas/data0717_forced_foorced_local_obs',
-            'datas/data0716-forced_coord_minimal_other_agent_aware',
-            'datas/data0721_forced_coord_minimal_spatial'
-        ]
-        configs = [
-            'Global Observation',
-            'Local Observation',
-            'Minimal Spatial Other Agent Aware',
-            'Minimal Spatial'
-        ]
+    # Collect series per folder x config
+    all_series = []  # list of dicts: {label, config, running_avg, episode_returns}
 
-        for folder in folders:
-            running_avg, episode_returns = produce_plots_for_all_configs(folder_name=folder, keyword=keyword)
-            running_avg_lists.append(running_avg)
-            episode_returns_lists.append(episode_returns)
+    for folder in folders:
+        label = os.path.basename(os.path.dirname(os.path.normpath(folder)))
+        print(f"Processing folder '{folder}' -> label '{label}'")
+        series = load_folder(folder, keyword)
+        for s in series:
+            algorithm = label.split('_')[0]
+            using_bfs = 'bfs' in label
+            using_global = 'global' in label
+            using_shared = 'shared' in label
+            
+            
+            bfs_string = "+BFS" if using_bfs else ""
+            obs_string = 'global obs' if using_global else 'local obs'
+            obs_string = obs_string if using_bfs else ""
+            shared_string = " (shared reward)" if using_shared else ""
+            label = f"{algorithm.upper()}{bfs_string}, {obs_string}{shared_string}"
+            s["label"] = label
+            all_series.append(s)
 
-        plot_comparisons(running_avg_lists, configs=configs, episode_returns_lists=episode_returns_lists, 
-                         title="Different Visibility of 2 agents in forced coordination room")
+    if not all_series:
+        print("No data found.")
         return
 
-    if keyword == "returns":
-        produce_plots_for_all_configs(folder_name, keyword)
-    elif keyword == "pot":
-        print("Plotting pot data")
-        produce_plots_for_all_configs(folder_name, keyword)
-    elif keyword == "delivery":
-        print("Plotting delivery data")
-        produce_plots_for_all_configs(folder_name, keyword)
-
-    return
-
+    # One plot per config, all folders overlaid
+    configs = sorted(set(s["config"] for s in all_series))
+    for config in configs:
+        subset = [s for s in all_series if s["config"] == config]
+        plot_config(subset, config, keyword)
 
 def extract_config(filename_without_ext):
-    seeds = ['seed_1', 'seed_2', 'seed_3', 'seed_4']
-    configs = ['overcooked_cramped_room_v0', 'overcooked_forced_coordination_v0', 'overcooked_coordination_ring_v0', 'overcooked_counter_circuit_v0']
-    for configuration in configs:
-        if configuration in filename_without_ext:
-            return configuration
+    configs = [
+        "overcooked_cramped_room_v0",
+        "overcooked_forced_coordination_v0",
+        "overcooked_coordination_ring_v0",
+        "overcooked_counter_circuit_v0",
+    ]
+    for cfg in configs:
+        if cfg in filename_without_ext:
+            return cfg
     return None
 
-"""
 
-plot comparisons of running averages for different configurations
-
-"""
-def plot_comparisons(running_avg_lists, configs=['config1', 'config2'], episode_returns_lists=None, title=None):
+def load_folder(folder_name, keyword):
     """
-    Plot all running averages for all configurations.
+    Read all matching CSVs in folder_name, group by config.
+    Returns a list of dicts: {config, running_avg, episode_returns}
     """
-    print(f"Plotting comparisons for {len(running_avg_lists)} configurations")
-    plt.figure(figsize=(10, 6))
-    
-    # Define colors for each configuration
-    colors = plt.cm.tab10(range(len(configs)))  # Use matplotlib's tab10 colormap
-    
-    # Plot individual seeds with light transparency if provided
-    if episode_returns_lists:
-        for config_idx, (config, episode_returns) in enumerate(zip(configs, episode_returns_lists)):
-            for seed_returns in episode_returns:
-                x_coords = [(i + 1)*16*1000*2 for i in range(len(seed_returns))]
-                plt.plot(x_coords, seed_returns, color=colors[config_idx], alpha=0.2)
-    
-    # Plot running averages for each configuration
-    for config_idx, (config, running_avg) in enumerate(zip(configs, running_avg_lists)):
-        print(f"Plotting {config} with {len(running_avg)} points")
-        x_coords = [(i + 1)*16*1000*2 for i in range(len(running_avg))]
-        plt.plot(x_coords, running_avg, label=config, linewidth=2, color=colors[config_idx])
-    
-    plt.xlabel("Steps")
-    plt.ylabel("Running Average Return")
-    plt.title("Running Average Returns for Different Configurations")
-    plt.legend()
-    plt.grid(True)
-    plt.savefig("all_layouts_running_avg.png")
+    configs = [
+        "overcooked_cramped_room_v0",
+        "overcooked_forced_coordination_v0",
+        "overcooked_coordination_ring_v0",
+        "overcooked_counter_circuit_v0",
+    ]
+    data_dict = {cfg: [] for cfg in configs}
 
-"""
-Load all returns.csv files and plot them
-"""
-def produce_plots_for_all_configs(folder_name="data", keyword="returns"):
-    seeds = ['seed_1', 'seed_2', 'seed_3', 'seed_4', 'seed_5']
-    configs = ["overcooked_cramped_room_v0", "overcooked_forced_coordination_v0", "overcooked_coordination_ring_v0", 'overcooked_counter_circuit_v0']
-    data_dict = {}
-    for configuration in configs:
-        data_dict[configuration] = []
-    files = os.listdir(folder_name)
-    for file in files:
+    num_envs = 1
+    for file in os.listdir(folder_name):
+        if file.endswith(".txt"):
+            with open(os.path.join(folder_name, file)) as f:
+                for line in f:
+                    if line.startswith("num_envs:"):
+                        num_envs = int(line.split(":")[1].strip())
+                        break
+                
+    for file in os.listdir(folder_name):
         full_path = os.path.join(folder_name, file)
-        if os.path.isfile(full_path):
-            if os.path.splitext(file)[-1] == '.csv' and keyword  in file:
-                config = extract_config(os.path.splitext(file)[0])
-                assert config is not None, f"{file} is not in the required format."
-                print(f"Reading {full_path}")
-                df = pd.read_csv(full_path)
-                data_dict[config].append(np.squeeze(df.values))
+        if (os.path.isfile(full_path)
+                and os.path.splitext(file)[-1] == ".csv"
+                and keyword in file):
+            config = extract_config(os.path.splitext(file)[0])
+            assert config is not None, f"{file} is not in the required format."
+            print(f"  Reading {full_path}")
+            df = pd.read_csv(full_path)
+            data_dict[config].append(np.squeeze(df.values))
 
-    running_avg = None
-    for configuration in configs:
-        if data_dict[configuration]:
-            if keyword == "returns":
-                running_avg, list_of_list = plot_alg_results(data_dict[configuration], f"plots/Overcooked.png", label="Running average", title=configuration)
-            elif keyword == "pot":
-                running_avg, list_of_list = plot_ingredients_in_pots(data_dict[configuration], f"plots/Overcooked_ingredients_in_pots.png", label="",title="Overcooked_2 agents in cramped room - Ingredients in Pots",  ylabel="frequency")
-            elif keyword == "delivery":
-                print(f"Plotting delivery data for {configuration}")
-                running_avg, list_of_list = plot_ingredients_in_pots(data_dict[configuration], f"plots/Overcooked_delivery.png", label="",title="Overcooked_2 agents in cramped room - Delivery",  ylabel="frequency")
+    results = []
+    for cfg in configs:
+        if data_dict[cfg]:
+            results.append({
+                "config": cfg,
+                "episode_returns": data_dict[cfg],
+                "num_envs": num_envs
+            })
+    return results
+
+def plot_config(series_list, config, keyword):
+    """
+    Plot all folders for a single config on one figure.
+    Each folder gets its own colour; line = mean, band = 95% CI.
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    colors = plt.cm.tab10(range(len(series_list)))
     
-    return running_avg, list_of_list
+    # BFS baseline (only for returns)
+    if keyword == "returns":
+        bfs = _bfs_baseline(config)
+        if bfs is not None:
+            ax.axhline(y=bfs, color="black", linestyle="--", linewidth=1.2,
+                       label="Single-agent BFS")
 
+    for idx, s in enumerate(series_list):
+        color = colors[idx]
+        label = s["label"]
+        for x in s["episode_returns"]:
+            print(label, x.shape)
+        print(type(s["episode_returns"][0]))
+        
+        min_len = min(len(r) for r in s["episode_returns"])
+        data_array = np.array([r[:min_len] for r in s["episode_returns"]])
+        mean, lo, hi = compute_ci(data_array)
+        running_avg = smooth(mean)
+        lo = smooth(lo)
+        hi = smooth(hi)
+        x_coords = [i * s["num_envs"] for i in range(1, len(running_avg) + 1)]
+        max_steps = 3_000
+        cutoff = next((i for i, x in enumerate(x_coords) if x > max_steps), len(x_coords))
+        x_coords, running_avg, lo, hi = x_coords[:cutoff], running_avg[:cutoff], lo[:cutoff], hi[:cutoff]
 
-def plot_ingredients_in_pots(episode_returns_list, file, label="Algorithm", ylabel="frequency", title="overcooked ingredient in pots", eval_interval=1000):
-    """
-    episode_returns_list: list of episode returns. If there is 3 seeds, then the list should have 3 lists.
-    """
-    # Compute running average
-    print(len(episode_returns_list))
-    running_avg = np.mean(np.array(episode_returns_list), axis=0)  # Average over seeds. dim (1, num_episodes)
-    new_running_avg = running_avg.copy()
-    for i in range(len(running_avg)):
-        new_running_avg[i] = np.mean(running_avg[max(0, i-10):min(len(running_avg), i + 10)])  # each point is the average of itself and its neighbors (+/- 10*eval_interval)
-    running_avg = new_running_avg
-
-    # x axis goes by 1000
-    eval_interval = 1
-    x_coords = [eval_interval * (i + 1) for i in range(len(running_avg))]
+        ax.fill_between(x_coords, lo, hi, color=color, alpha=0.2)
+        ax.plot(x_coords, running_avg, color=color, linewidth=1, label=label)
     
-    # Create the plot
-    plt.figure(figsize=(10, 6))
+    ax.set_title(config)
+    ax.set_xlabel("episode")
+    ax.set_ylabel("Return" if keyword == "returns" else keyword)
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.grid(True)
+    ax.set_ylim(bottom=0)
 
-    # Plot individual seeds with light transparency
-    for seed_returns in episode_returns_list:
-        plt.plot(x_coords, seed_returns,  color='gray', alpha=0.5)
-    # Plot the running average
-    plt.plot(
-        x_coords,
-        running_avg,
-        color='r',
-        label=label
-    )
-    #plt.plot(x_coords, np.full(len(running_avg), 3500)   , color='b', label='threshold')
-
-    # Adding labels and title
-    if 'Ant' in file:
-        plt.title(f"")
-    else:
-        plt.title(title)
-    plt.xlabel("episode")
-    plt.ylabel(ylabel)
-
-    # Add legend
-    plt.legend()
-
-    # Add grid
-    plt.grid(True)
-
-    # Display the plot
-    plt.savefig(file)
-    return running_avg, episode_returns_list
+    safe_config = config.replace("/", "_")
+    out_path = f"plots/{safe_config}_{keyword}.png"
+    os.makedirs("plots", exist_ok=True)
+    fig.savefig(out_path, bbox_inches="tight")
+    print(f"Saved: {out_path}")
+    plt.close(fig)
 
 
-def plot_alg_results(episode_returns_list, file, label="Algorithm", ylabel="Return",title="overcooked rewards",  eval_interval=1000):
+def _bfs_baseline(config):
+    if "cramped_room" in config:
+        return 30.7
+    if "counter_circuit" in config:
+        return 21.2
+    if "coordination_ring" in config:
+        return 35.3
+    return None
+
+def compute_ci(data_array, confidence=0.95):
     """
-    Plot one algorithm's results by averaging over seeds.
+    Mean and 95% CI across seeds (t-distribution, robust for small n).
     Args:
-        episode_returns_list (list[list[float]]): list of episode returns. [returns_seed_1, returns_seed_2, ...]
-        file (str): file name to save the plot.
-        label (str): label for the algorithm in the plot.
-        ylabel (str): label for the y-axis.
-        title (str): title of the plot.
+        data_array: (num_seeds, num_steps)
     Returns:
-        running_avg (np.ndarray): running average of the returns. dim (1, num_episodes/steps)
-        episode_returns_list (list[list[float]]): the input list of returns, unchanged.
+        mean, lower_bound, upper_bound  -- each shape (num_steps,)
     """
-    # Compute running average
-    print(len(episode_returns_list))
-    running_avg = np.mean(np.array(episode_returns_list), axis=0)  # Average over seeds. dim (1, num_episodes)
-    new_running_avg = running_avg.copy()
-    for i in range(len(running_avg)):
-        new_running_avg[i] = np.mean(running_avg[max(0, i-10):min(len(running_avg), i + 10)])  # each point is the average of itself and its neighbors (+/- 10*eval_interval)
-    running_avg = new_running_avg
+    n = data_array.shape[0]
+    mean = np.mean(data_array, axis=0)
+    if n < 2:
+        return mean, mean, mean
+    se = stats.sem(data_array, axis=0)
+    h = se * stats.t.ppf((1 + confidence) / 2, df=n - 1)
+    return mean, mean - h, mean + h
 
-    # x axis goes by 1000
-    eval_interval = 1
-    x_coords = [eval_interval * (i + 1) for i in range(len(running_avg))]
-    
-    # Create the plot
-    plt.figure(figsize=(10, 6))
 
-    # Plot individual seeds with light transparency
-    for seed_returns in episode_returns_list:
-        plt.plot(x_coords, seed_returns,  color='gray', alpha=0.5)
-    # Plot the running average
-    plt.plot(
-        x_coords,
-        running_avg,
-        color='r',
-        label=label
-    )
-    
-    if 'cramped_room' in title:
-        # bfs_baseline = 49.7
-        bfs_baseline = 30.7
-    elif 'counter_circuit' in title:
-        # bfs_baseline = 34.3
-        bfs_baseline = 21.2
-    elif 'coordination_ring' in title:
-        # bfs_baseline = 57.3
-        bfs_baseline = 35.3
-
-    plt.plot(
-        x_coords,
-        [bfs_baseline for _ in x_coords],
-        color='b',
-        label='single-agent bfs'
-    )
-    #plt.plot(x_coords, np.full(len(running_avg), 3500)   , color='b', label='threshold')
-
-    # Adding labels and title
-    if 'Ant' in file:
-        plt.title(f"")
-    else:
-        plt.title(title)
-    plt.xlabel("episode")
-    plt.ylabel(ylabel)
-
-    # Add legend
-    plt.legend()
-
-    # Add grid
-    plt.grid(True)
-
-    # Display the plot
-    plt.savefig(file)
-    return running_avg, episode_returns_list
+def smooth(arr, window=10):
+    """Symmetric moving average with half-window `window`."""
+    smoothed = arr.copy().astype(float)
+    for i in range(len(arr)):
+        smoothed[i] = np.mean(arr[max(0, i - window): min(len(arr), i + window)])
+    return smoothed
 
 
 if __name__ == "__main__":
